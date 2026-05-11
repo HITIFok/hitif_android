@@ -216,7 +216,7 @@ class BrowserActivity : AppCompatActivity() {
         }
     }
 
-    private fun showSeasonDownloadDialog() {
+    fun showSeasonDownloadDialog() {
         val view = layoutInflater.inflate(R.layout.dialog_season_download, null)
         val dialog = AlertDialog.Builder(this)
             .setTitle("Telechargement par saisons")
@@ -292,7 +292,7 @@ class BrowserActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun showCustomFilenameDialog(item: com.hitif.videodownloader.model.MediaItem) {
+    fun showCustomFilenameDialog(item: com.hitif.videodownloader.model.MediaItem) {
         val view = layoutInflater.inflate(R.layout.dialog_custom_filename, null)
         val etFileName = view.findViewById<android.widget.EditText>(R.id.etFileName)
         val tvExt = view.findViewById<android.widget.TextView>(R.id.tvExtension)

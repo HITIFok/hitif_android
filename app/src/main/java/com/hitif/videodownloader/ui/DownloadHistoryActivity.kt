@@ -102,7 +102,7 @@ class DownloadHistoryActivity : AppCompatActivity() {
 
         val query = DownloadManager.Query()
             .setFilterByStatus(DownloadManager.STATUS_SUCCESSFUL or DownloadManager.STATUS_RUNNING or DownloadManager.STATUS_PENDING or DownloadManager.STATUS_PAUSED)
-            .setOrderBy(DownloadManager.COLUMN_LAST_MODIFIED_TIMESTAMP, DownloadManager.ORDER_DESCENDING)
+            .setOrderBy(DownloadManager.Query.ORDER_DESCENDING)
 
         val cursor: Cursor? = dm.query(query)
 
