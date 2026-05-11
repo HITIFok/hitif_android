@@ -22,13 +22,14 @@
           android:strokeAlpha="0.4"
           android:pathData="M50,8 L50,48 M50,48 L16,28 M50,48 L84,28 M50,48 L50,84"/>
     <!-- Neon ring 1 -->
-    <oval android:left="26" android:top="74" android:right="74" android:bottom="88"
+    <path android:fillColor="#00000000"
           android:strokeColor="#00E5FF" android:strokeWidth="1.5"
-          android:fillColor="#00000000"/>
+          android:pathData="M50,74 a24,7 0 1,0 0.01,0 Z"/>
     <!-- Neon ring 2 -->
-    <oval android:left="16" android:top="80" android:right="84" android:bottom="97"
+    <path android:fillColor="#00000000"
           android:strokeColor="#FF33FF" android:strokeWidth="1"
-          android:fillColor="#00000000" android:strokeAlpha="0.6"/>
+          android:fillAlpha="0.6" android:strokeAlpha="0.6"
+          android:pathData="M50,80 a34,8.5 0 1,0 0.01,0 Z"/>
     <!-- Download arrow -->
     <path android:fillColor="#00000000"
           android:strokeColor="#FFFFFF"
