@@ -79,6 +79,9 @@ dependencies {
     // SwipeRefreshLayout
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
+    // CardView (fallback for MaterialCardView)
+    implementation 'androidx.cardview:cardview:1.0.0'
+
     // Room (download history)
     implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'androidx.room:room-ktx:2.6.1'

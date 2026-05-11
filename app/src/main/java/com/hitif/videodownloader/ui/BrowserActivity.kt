@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.webkit.*
@@ -31,18 +32,23 @@ class BrowserActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityBrowserBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        try {
+            binding = ActivityBrowserBinding.inflate(layoutInflater)
+            setContentView(binding.root)
 
-        setupWebView()
-        setupAddressBar()
-        setupToolbar()
-        setupObservers()
-        setupBackPress()
+            setupWebView()
+            setupAddressBar()
+            setupToolbar()
+            setupObservers()
+            setupBackPress()
 
-        // Handle external URL intent
-        val url = intent?.data?.toString() ?: savedInstanceState?.getString("url") ?: HOME_URL
-        binding.webView.loadUrl(url)
+            // Handle external URL intent
+            val url = intent?.data?.toString() ?: savedInstanceState?.getString("url") ?: HOME_URL
+            binding.webView.loadUrl(url)
+        } catch (e: Exception) {
+            Log.e("HITIF", "onCreate crash", e)
+            Toast.makeText(this, "Erreur init: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     // ── WebView ──────────────────────────────────────────────────────────────
