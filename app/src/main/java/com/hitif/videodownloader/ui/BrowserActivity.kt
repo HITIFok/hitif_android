@@ -453,20 +453,21 @@ class BrowserActivity : AppCompatActivity() {
         seasonHandler.postDelayed(timeoutRunnable, seasonTimeoutMs)
 
         // Observe media items - when a video/HLS item is found, download it
-        val observer = androidx.lifecycle.Observer<List<MediaItem>> { items ->
+        var observer: androidx.lifecycle.Observer<List<MediaItem>>? = null
+        observer = androidx.lifecycle.Observer<List<MediaItem>> { items ->
             val videoItem = items.firstOrNull { it.mediaType == MediaType.VIDEO || it.mediaType == MediaType.HLS || it.mediaType == MediaType.DASH }
             if (videoItem != null) {
                 seasonHandler.removeCallbacksAndMessages(null)
                 downloadSeasonEpisode(ep, videoItem)
-                vm.mediaItems.removeObserver(observer)
+                observer?.let { vm.mediaItems.removeObserver(it) }
             }
         }
-        vm.mediaItems.observeForever(observer)
+        vm.mediaItems.observeForever(observer!!)
 
         // Store observer for cleanup
         seasonJob = CoroutineScope(Dispatchers.Main).launch {
             delay(seasonTimeoutMs)
-            vm.mediaItems.removeObserver(observer)
+            observer?.let { vm.mediaItems.removeObserver(it) }
         }
     }
 
