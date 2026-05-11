@@ -35,7 +35,7 @@
                 android:text="MP4"
                 android:textColor="@color/accent_cyan"
                 android:textSize="10sp"
-                android:fontFamily="@font/orbitron"
+                android:fontFamily=""sans-serif-condensed""
                 android:letterSpacing="0.05" />
 
             <TextView
@@ -45,7 +45,7 @@
                 android:text="H"
                 android:textColor="@color/text_dim"
                 android:textSize="9sp"
-                android:fontFamily="@font/rajdhani_medium" />
+                android:fontFamily=""sans-serif-medium"" />
         </LinearLayout>
 
         <!-- Info -->
@@ -64,7 +64,7 @@
                 android:text="video_filename.mp4"
                 android:textColor="@color/text_primary"
                 android:textSize="12sp"
-                android:fontFamily="@font/rajdhani_medium"
+                android:fontFamily=""sans-serif-medium""
                 android:maxLines="2"
                 android:ellipsize="middle" />
 
@@ -82,7 +82,7 @@
                     android:text="— MB"
                     android:textColor="@color/text_dim"
                     android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    android:fontFamily=""sans-serif-medium"" />
 
                 <TextView
                     android:id="@+id/tvDuration"
@@ -91,7 +91,7 @@
                     android:layout_marginStart="8dp"
                     android:textColor="@color/text_dim"
                     android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    android:fontFamily=""sans-serif-medium"" />
             </LinearLayout>
         </LinearLayout>
 

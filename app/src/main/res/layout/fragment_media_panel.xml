@@ -45,7 +45,7 @@
                 android:text="VIDEO DOWNLOAD"
                 android:textColor="@color/accent_cyan"
                 android:textSize="11sp"
-                android:fontFamily="@font/orbitron"
+                android:fontFamily=""sans-serif-condensed""
                 android:letterSpacing="0.12" />
 
             <TextView
@@ -55,7 +55,7 @@
                 android:text="En attente de médias…"
                 android:textColor="@color/text_dim"
                 android:textSize="11sp"
-                android:fontFamily="@font/rajdhani_medium"
+                android:fontFamily=""sans-serif-medium""
                 android:letterSpacing="0.04" />
         </LinearLayout>
 
@@ -121,7 +121,7 @@
             android:text="EN ATTENTE DE MÉDIAS…"
             android:textColor="@color/accent_cyan"
             android:textSize="10sp"
-            android:fontFamily="@font/orbitron"
+            android:fontFamily=""sans-serif-condensed""
             android:letterSpacing="0.25"
             android:alpha="0.7" />
 
@@ -132,7 +132,7 @@
             android:text="Naviguez sur une page contenant des vidéos"
             android:textColor="@color/text_dim"
             android:textSize="12sp"
-            android:fontFamily="@font/rajdhani_medium"
+            android:fontFamily=""sans-serif-medium""
             android:gravity="center" />
     </LinearLayout>
 
