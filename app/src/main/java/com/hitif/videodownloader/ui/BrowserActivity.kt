@@ -2,10 +2,17 @@ package com.hitif.videodownloader.ui
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
@@ -15,12 +22,17 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
 import androidx.core.view.isVisible
 import com.hitif.videodownloader.R
 import com.hitif.videodownloader.databinding.ActivityBrowserBinding
+import com.hitif.videodownloader.download.DownloadHelper
+import com.hitif.videodownloader.model.MediaItem
+import com.hitif.videodownloader.model.MediaType
 import com.hitif.videodownloader.network.JsBridge
 import com.hitif.videodownloader.network.JsInterface
 import com.hitif.videodownloader.util.SmartNamer
+import kotlinx.coroutines.*
 
 class BrowserActivity : AppCompatActivity() {
 
@@ -28,8 +40,25 @@ class BrowserActivity : AppCompatActivity() {
     private val vm: BrowserViewModel by viewModels()
     private var mediaPanel: MediaPanelFragment? = null
 
+    // Season download state
+    private var seasonActive = false
+    private var seasonJob: Job? = null
+    private val seasonHandler = Handler(Looper.getMainLooper())
+    private var seasonPattern = ""
+    private var seasonStart = 1
+    private var seasonEnd = 24
+    private var seasonCurrentEp = 0
+    private var seasonDelayMs = 8000L
+    private var seasonTimeoutMs = 20000L
+    private var seasonEpisodeNaming = mutableMapOf<Int, String>() // epNum -> filename
+    private var seasonDetectedCount = 0
+    private var seasonErrorCount = 0
+    private var seasonSuccessCount = 0
+
     companion object {
         const val HOME_URL = "https://www.google.com"
+        const val CHANNEL_ID = "hitif_downloads"
+        const val SEASON_NOTIFICATION_ID = 1001
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -219,6 +248,11 @@ class BrowserActivity : AppCompatActivity() {
     }
 
     fun showSeasonDownloadDialog() {
+        if (seasonActive) {
+            Toast.makeText(this, "Un telechargement de saison est deja en cours", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val view = layoutInflater.inflate(R.layout.dialog_season_download, null)
         val dialog = AlertDialog.Builder(this)
             .setTitle("Telecharger une Saison")
@@ -257,11 +291,12 @@ class BrowserActivity : AppCompatActivity() {
             val pattern = SmartNamer.detectPattern(rawUrl)
             if (pattern.contains("{N}")) {
                 tvPattern.text = "Pattern: $pattern"
+                tvPattern.setTextColor(0xFF4CAF50.toInt())
                 tvPattern.visibility = android.view.View.VISIBLE
                 val startEp = etEpStart.text.toString().toIntOrNull() ?: 1
                 val naming = SmartNamer.smartName(pattern, startEp)
                 if (naming.animeName.isNotBlank()) {
-                    tvPreview.text = "\uD83D\uDCC1 ${naming.basename}"
+                    tvPreview.text = "\uD83D\uDCC1 ${naming.basename}.mp4"
                     tvPreview.visibility = android.view.View.VISIBLE
                 } else {
                     tvPreview.visibility = android.view.View.GONE
@@ -309,7 +344,7 @@ class BrowserActivity : AppCompatActivity() {
             }
         }
 
-        // Start button: queue all downloads with smart naming
+        // Start button: process season by loading each episode page
         view.findViewById<android.widget.Button>(R.id.btnStartSeason).setOnClickListener {
             val rawUrl = etEpisodeUrl.text.toString().trim()
             val pattern = SmartNamer.detectPattern(rawUrl)
@@ -327,33 +362,232 @@ class BrowserActivity : AppCompatActivity() {
                 Toast.makeText(this, "Maximum 200 episodes a la fois", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val delayMs = delayValues[spinDelay.selectedItemPosition].toLong() * 1000
 
-            var count = 0
+            // Pre-compute smart names for all episodes
+            val namingMap = mutableMapOf<Int, String>()
             for (ep in e1..e2) {
-                val url = pattern.replace("{N}", ep.toString())
                 val naming = SmartNamer.smartName(pattern, ep)
                 val filename = if (naming.animeName.isNotBlank()) {
                     "${naming.basename}.mp4"
                 } else {
                     "Episode_${ep.toString().padStart(2, '0')}.mp4"
                 }
-                val item = com.hitif.videodownloader.model.MediaItem(
-                    url = url,
-                    filename = filename,
-                    mediaType = com.hitif.videodownloader.model.MediaType.VIDEO,
-                    pageUrl = rawUrl
-                )
-                try {
-                    com.hitif.videodownloader.download.DownloadHelper.enqueue(this, item)
-                    count++
-                } catch (_: Exception) {}
+                namingMap[ep] = filename
             }
+
             dialog.dismiss()
-            Toast.makeText(this, "$count telechargement(s) lance(s)", Toast.LENGTH_LONG).show()
+            startSeasonProcessing(pattern, e1, e2, delayValues[spinDelay.selectedItemPosition].toLong(), namingMap)
         }
 
         dialog.show()
+    }
+
+    // ── Season Download Processing ───────────────────────────────────────────
+
+    /**
+     * Starts the season download process: loads each episode page in the WebView,
+     * waits for the media detector to find video URLs, then downloads them.
+     * This is similar to the Chrome extension's approach.
+     */
+    @SuppressLint("SetTextI18n")
+    private fun startSeasonProcessing(
+        pattern: String, start: Int, end: Int,
+        delayMs: Long, namingMap: Map<Int, String>
+    ) {
+        seasonActive = true
+        seasonPattern = pattern
+        seasonStart = start
+        seasonEnd = end
+        seasonCurrentEp = start
+        seasonDelayMs = delayMs
+        seasonDetectedCount = 0
+        seasonErrorCount = 0
+        seasonSuccessCount = 0
+        seasonEpisodeNaming = namingMap.toMutableMap()
+
+        createNotificationChannel()
+
+        val total = end - start + 1
+        showSeasonNotification(
+            "Saison en cours",
+            "Episode $start/$end en cours de detection...",
+            total, 0
+        )
+        Toast.makeText(this, "Saison lancee: $total episodes - detection en cours", Toast.LENGTH_LONG).show()
+
+        // Process the first episode
+        processNextSeasonEpisode()
+    }
+
+    private fun processNextSeasonEpisode() {
+        if (!seasonActive || seasonCurrentEp > seasonEnd) {
+            finishSeasonProcessing()
+            return
+        }
+
+        val ep = seasonCurrentEp
+        val url = seasonPattern.replace("{N}", ep.toString())
+        Log.d("HITIF_SEASON", "Processing episode $ep: $url")
+
+        // Update notification
+        val total = seasonEnd - seasonStart + 1
+        showSeasonNotification(
+            "Saison en cours",
+            "Episode $ep/${seasonEnd} en cours de detection...",
+            total, (ep - seasonStart)
+        )
+
+        // Clear previous media
+        vm.clearMedia()
+
+        // Load the episode page in the WebView
+        binding.webView.loadUrl(url)
+
+        // Wait for media detection or timeout
+        val timeoutRunnable = Runnable {
+            Log.d("HITIF_SEASON", "Timeout for episode $ep - no media detected")
+            seasonErrorCount++
+            advanceSeasonEpisode()
+        }
+
+        seasonHandler.postDelayed(timeoutRunnable, seasonTimeoutMs)
+
+        // Observe media items - when a video/HLS item is found, download it
+        val observer = androidx.lifecycle.Observer<List<MediaItem>> { items ->
+            val videoItem = items.firstOrNull { it.mediaType == MediaType.VIDEO || it.mediaType == MediaType.HLS || it.mediaType == MediaType.DASH }
+            if (videoItem != null) {
+                seasonHandler.removeCallbacksAndMessages(null)
+                downloadSeasonEpisode(ep, videoItem)
+                vm.mediaItems.removeObserver(this@Observer)
+            }
+        }
+        vm.mediaItems.observeForever(observer)
+
+        // Store observer for cleanup
+        seasonJob = CoroutineScope(Dispatchers.Main).launch {
+            delay(seasonTimeoutMs)
+            vm.mediaItems.removeObserver(observer)
+        }
+    }
+
+    private fun downloadSeasonEpisode(ep: Int, mediaItem: MediaItem) {
+        val filename = seasonEpisodeNaming[ep] ?: "Episode_${ep.toString().padStart(2, '0')}.mp4"
+        val item = mediaItem.copy(
+            url = mediaItem.url,
+            filename = filename,
+            pageUrl = seasonPattern.replace("{N}", ep.toString())
+        )
+
+        try {
+            val downloadId = DownloadHelper.enqueue(this, item)
+            Log.d("HITIF_SEASON", "Downloaded episode $ep as '$filename' (id=$downloadId)")
+            seasonSuccessCount++
+            seasonDetectedCount++
+
+            showSeasonNotification(
+                "Saison en cours",
+                "Episode $ep telecharge! ($seasonDetectedCount/${seasonEnd - seasonStart + 1})",
+                seasonEnd - seasonStart + 1,
+                seasonDetectedCount + seasonErrorCount
+            )
+        } catch (e: Exception) {
+            Log.e("HITIF_SEASON", "Error downloading episode $ep", e)
+            seasonErrorCount++
+        }
+
+        advanceSeasonEpisode()
+    }
+
+    private fun advanceSeasonEpisode() {
+        seasonCurrentEp++
+        if (seasonCurrentEp > seasonEnd) {
+            finishSeasonProcessing()
+            return
+        }
+
+        // Delay between episodes
+        seasonHandler.postDelayed({
+            processNextSeasonEpisode()
+        }, seasonDelayMs)
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun finishSeasonProcessing() {
+        seasonActive = false
+        seasonHandler.removeCallbacksAndMessages(null)
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val msg = if (seasonSuccessCount > 0) {
+            "Termine: $seasonSuccessCount telecharge(s), $seasonErrorCount erreur(s)"
+        } else {
+            "Termine: aucun video detectee. Les pages ne contiennent peut-etre pas de video directement."
+        }
+
+        showSeasonNotification("Saison terminee", msg, 1, 1)
+
+        // Update to a completed notification that can be dismissed
+        val intent = Intent(this, DownloadHistoryActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Saison terminee")
+            .setContentText(msg)
+            .setProgress(0, 0, false)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+        notificationManager.notify(SEASON_NOTIFICATION_ID, notification)
+
+        runOnUiThread {
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun stopSeasonProcessing() {
+        if (seasonActive) {
+            seasonActive = false
+            seasonHandler.removeCallbacksAndMessages(null)
+            showSeasonNotification("Saison arretee",
+                "${seasonDetectedCount} telecharge(s), arret a l'episode $seasonCurrentEp",
+                1, 1)
+            Toast.makeText(this, "Saison arretee", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "HITIF Downloads",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Suivi des telechargements de saison"
+                setShowBadge(true)
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showSeasonNotification(title: String, text: String, total: Int, progress: Int) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val intent = Intent(this, BrowserActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setProgress(total, progress.coerceAtMost(total), total == 0)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+        notificationManager.notify(SEASON_NOTIFICATION_ID, notification)
     }
 
     fun showCustomFilenameDialog(item: com.hitif.videodownloader.model.MediaItem) {

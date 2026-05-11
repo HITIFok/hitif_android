@@ -90,7 +90,11 @@ object SmartNamer {
                 val words = slug.split(Regex("""[-_]+"""))
                 val titled = words.mapIndexed { index, word ->
                     if (index == 0 || !SMALL_WORDS.contains(word.lowercase())) {
-                        word.replaceFirstChar { it.uppercase() } + word.drop(1).lowercase()
+                        // Capitalize first letter, lowercase the rest
+                        word.replaceFirstChar { it.uppercase() }.let {
+                            if (it.length > 1) it.substring(0, 1) + it.substring(1).lowercase()
+                            else it.uppercase()
+                        }
                     } else {
                         word.lowercase()
                     }

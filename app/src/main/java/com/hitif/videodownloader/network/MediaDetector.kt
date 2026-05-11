@@ -32,7 +32,8 @@ class MediaDetector(
 
     private val VIDEO_EXTENSIONS = setOf(
         "mp4", "webm", "mkv", "avi", "mov", "flv", "m4v",
-        "3gp", "ts", "mts", "m2ts", "vob", "ogv"
+        "3gp", "mts", "m2ts", "vob", "ogv"
+        // NOTE: "ts" removed — TS segments are part of HLS and should not be shown separately
     )
     private val AUDIO_EXTENSIONS = setOf(
         "mp3", "m4a", "aac", "ogg", "opus", "flac", "wav"
@@ -41,6 +42,13 @@ class MediaDetector(
         "m3u8" to MediaType.HLS,
         "m3u"  to MediaType.HLS,
         "mpd"  to MediaType.DASH
+    )
+    // Extensions to completely ignore (TS segments, subtitle files, images, etc.)
+    private val IGNORE_EXTENSIONS = setOf(
+        "ts", "m2ts", "vtt", "srt", "ass", "ssa", "ttml",
+        "jpg", "jpeg", "png", "gif", "webp", "svg", "ico",
+        "js", "css", "woff", "woff2", "ttf", "eot",
+        "xml", "json", "txt", "log"
     )
 
     private val VIDEO_MIME_PREFIXES = listOf("video/", "application/x-mpegurl",
@@ -107,6 +115,10 @@ class MediaDetector(
     private fun shouldSkip(cleanUrl: String): Boolean {
         BLOCKED_HOSTS.forEach { host -> if (cleanUrl.contains(host)) return true }
         SKIP_PATTERNS.forEach { re -> if (re.containsMatchIn(cleanUrl)) return true }
+        val ext = cleanUrl.substringAfterLast('.', "")
+        if (ext in IGNORE_EXTENSIONS) return true
+        // Skip TS segments (they are part of HLS streams)
+        if (cleanUrl.contains(".ts") && cleanUrl.contains("/seg") || cleanUrl.matches(Regex(".*\\d+\\.ts$"))) return true
         return false
     }
 
@@ -168,14 +180,23 @@ class MediaDetector(
             ""
         }
         val rawName = url.substringBefore('?').substringAfterLast('/')
+
+        // Determine the best extension — always prefer .mp4 for video content
+        val finalExt = when (type) {
+            MediaType.HLS, MediaType.DASH -> "mp4"  // HLS/DASH streams saved as MP4
+            MediaType.VIDEO -> "mp4"               // Video files saved as MP4
+            MediaType.AUDIO -> "mp3"                // Audio files saved as MP3
+            MediaType.UNKNOWN -> {
+                val ext = if (extOrMime.contains('/')) extOrMime.substringAfter('/') else extOrMime
+                ext.take(4).ifBlank { "mp4" }
+            }
+        }
+
         val safeName = if (smartName.isNotBlank() && smartName.length > 3) {
-            // Use smart name with appropriate extension
-            val ext = if (extOrMime.contains('/')) extOrMime.substringAfter('/') else extOrMime
-            val cleanExt = ext.take(4).ifBlank { "mp4" }
-            "$smartName.$cleanExt"
+            "$smartName.$finalExt"
         } else {
             rawName.ifBlank { "media_${System.currentTimeMillis()}" }
-                .let { if (!it.contains('.')) "$it.${extOrMime.take(4)}" else it }
+                .let { if (!it.contains('.')) "$it.$finalExt" else "${it.substringBeforeLast('.')}.$finalExt" }
         }
 
         val quality = guessQuality(url, headers)
