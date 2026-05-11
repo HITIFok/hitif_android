@@ -4,6 +4,7 @@ import android.webkit.WebResourceRequest
 import com.hitif.videodownloader.model.MediaItem
 import com.hitif.videodownloader.model.MediaType
 import com.hitif.videodownloader.model.MediaQuality
+import com.hitif.videodownloader.util.SmartNamer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -160,9 +161,22 @@ class MediaDetector(
         headers: Map<String, String>, size: Long,
         pageUrl: String, pageTitle: String
     ): MediaItem {
+        // Smart naming: try to generate a clean name from the page URL
+        val smartName = if (pageUrl.isNotBlank()) {
+            SmartNamer.smartNameForPage(pageUrl, pageTitle)
+        } else {
+            ""
+        }
         val rawName = url.substringBefore('?').substringAfterLast('/')
-        val safeName = rawName.ifBlank { "media_${System.currentTimeMillis()}" }
-            .let { if (!it.contains('.')) "$it.${extOrMime.take(4)}" else it }
+        val safeName = if (smartName.isNotBlank() && smartName.length > 3) {
+            // Use smart name with appropriate extension
+            val ext = if (extOrMime.contains('/')) extOrMime.substringAfter('/') else extOrMime
+            val cleanExt = ext.take(4).ifBlank { "mp4" }
+            "$smartName.$cleanExt"
+        } else {
+            rawName.ifBlank { "media_${System.currentTimeMillis()}" }
+                .let { if (!it.contains('.')) "$it.${extOrMime.take(4)}" else it }
+        }
 
         val quality = guessQuality(url, headers)
 

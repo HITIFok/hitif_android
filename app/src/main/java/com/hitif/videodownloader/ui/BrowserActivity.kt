@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.webkit.*
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
@@ -19,6 +20,7 @@ import com.hitif.videodownloader.R
 import com.hitif.videodownloader.databinding.ActivityBrowserBinding
 import com.hitif.videodownloader.network.JsBridge
 import com.hitif.videodownloader.network.JsInterface
+import com.hitif.videodownloader.util.SmartNamer
 
 class BrowserActivity : AppCompatActivity() {
 
@@ -219,27 +221,65 @@ class BrowserActivity : AppCompatActivity() {
     fun showSeasonDownloadDialog() {
         val view = layoutInflater.inflate(R.layout.dialog_season_download, null)
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Telechargement par saisons")
+            .setTitle("Telecharger une Saison")
             .setView(view)
             .create()
 
-        val etSeriesName = view.findViewById<android.widget.EditText>(R.id.etSeriesName)
-        val etUrlPattern = view.findViewById<android.widget.EditText>(R.id.etUrlPattern)
-        val etSeasonStart = view.findViewById<android.widget.EditText>(R.id.etSeasonStart)
-        val etSeasonEnd = view.findViewById<android.widget.EditText>(R.id.etSeasonEnd)
-        val etEpisodeStart = view.findViewById<android.widget.EditText>(R.id.etEpisodeStart)
-        val etEpisodeEnd = view.findViewById<android.widget.EditText>(R.id.etEpisodeEnd)
+        val etEpisodeUrl = view.findViewById<android.widget.EditText>(R.id.etEpisodeUrl)
+        val etEpStart = view.findViewById<android.widget.EditText>(R.id.etEpStart)
+        val etEpEnd = view.findViewById<android.widget.EditText>(R.id.etEpEnd)
         val tvTotal = view.findViewById<android.widget.TextView>(R.id.tvTotalEpisodes)
+        val tvPattern = view.findViewById<android.widget.TextView>(R.id.tvDetectedPattern)
+        val tvPreview = view.findViewById<android.widget.TextView>(R.id.tvNamePreview)
+        val spinDelay = view.findViewById<android.widget.Spinner>(R.id.spinDelay)
+
+        // Delay spinner options
+        val delayOptions = arrayOf("5s", "8s", "12s", "20s", "30s")
+        val delayValues = intArrayOf(5, 8, 12, 20, 30)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, delayOptions)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinDelay.adapter = adapter
+        spinDelay.setSelection(1) // 8s default
+
+        // Auto-fill current URL
+        val currentUrl = binding.webView.url
+        if (currentUrl != null) {
+            etEpisodeUrl.setText(currentUrl)
+        }
+
+        fun updatePreview() {
+            val rawUrl = etEpisodeUrl.text.toString().trim()
+            if (rawUrl.isBlank() || !rawUrl.startsWith("http")) {
+                tvPattern.visibility = android.view.View.GONE
+                tvPreview.visibility = android.view.View.GONE
+                return
+            }
+            val pattern = SmartNamer.detectPattern(rawUrl)
+            if (pattern.contains("{N}")) {
+                tvPattern.text = "Pattern: $pattern"
+                tvPattern.visibility = android.view.View.VISIBLE
+                val startEp = etEpStart.text.toString().toIntOrNull() ?: 1
+                val naming = SmartNamer.smartName(pattern, startEp)
+                if (naming.animeName.isNotBlank()) {
+                    tvPreview.text = "\uD83D\uDCC1 ${naming.basename}"
+                    tvPreview.visibility = android.view.View.VISIBLE
+                } else {
+                    tvPreview.visibility = android.view.View.GONE
+                }
+            } else {
+                tvPattern.text = "Pattern non detecte - utilisez une URL avec un numero d'episode"
+                tvPattern.setTextColor(0xFFFF4444.toInt())
+                tvPattern.visibility = android.view.View.VISIBLE
+                tvPreview.visibility = android.view.View.GONE
+            }
+        }
 
         fun updateTotal() {
-            try {
-                val s1 = etSeasonStart.text.toString().toIntOrNull() ?: 1
-                val s2 = etSeasonEnd.text.toString().toIntOrNull() ?: 1
-                val e1 = etEpisodeStart.text.toString().toIntOrNull() ?: 1
-                val e2 = etEpisodeEnd.text.toString().toIntOrNull() ?: 1
-                val total = (s2 - s1 + 1) * (e2 - e1 + 1)
-                tvTotal.text = "$total episode(s) au total"
-            } catch (_: Exception) {}
+            val e1 = etEpStart.text.toString().toIntOrNull() ?: 1
+            val e2 = etEpEnd.text.toString().toIntOrNull() ?: 24
+            val total = if (e2 >= e1) (e2 - e1 + 1) else 0
+            tvTotal.text = "$total episode(s) au total"
+            updatePreview()
         }
 
         val watcher = object : android.text.TextWatcher {
@@ -247,43 +287,67 @@ class BrowserActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) { updateTotal() }
         }
-        listOf(etSeasonStart, etSeasonEnd, etEpisodeStart, etEpisodeEnd).forEach {
-            it.addTextChangedListener(watcher)
-        }
+        etEpisodeUrl.addTextChangedListener(watcher)
+        etEpStart.addTextChangedListener(watcher)
+        etEpEnd.addTextChangedListener(watcher)
         updateTotal()
 
         view.findViewById<android.widget.Button>(R.id.btnCancelSeason).setOnClickListener { dialog.dismiss() }
+
+        // Test button: open episode in browser
+        view.findViewById<android.widget.Button>(R.id.btnTestUrl).setOnClickListener {
+            val rawUrl = etEpisodeUrl.text.toString().trim()
+            val pattern = SmartNamer.detectPattern(rawUrl)
+            if (pattern.contains("{N}")) {
+                val startEp = etEpStart.text.toString().toIntOrNull() ?: 1
+                val testUrl = pattern.replace("{N}", startEp.toString())
+                binding.webView.loadUrl(testUrl)
+                dialog.dismiss()
+                Toast.makeText(this, "Episode $startEp ouvert", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Impossible de detecter le pattern", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Start button: queue all downloads with smart naming
         view.findViewById<android.widget.Button>(R.id.btnStartSeason).setOnClickListener {
-            val seriesName = etSeriesName.text.toString().trim()
-            val urlPattern = etUrlPattern.text.toString().trim()
-            if (seriesName.isBlank() || urlPattern.isBlank()) {
-                Toast.makeText(this, "Remplissez le nom et le pattern URL", Toast.LENGTH_SHORT).show()
+            val rawUrl = etEpisodeUrl.text.toString().trim()
+            val pattern = SmartNamer.detectPattern(rawUrl)
+            if (!pattern.contains("{N}")) {
+                Toast.makeText(this, "Impossible de detecter le pattern. Collez une URL d'episode.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val s1 = etSeasonStart.text.toString().toIntOrNull() ?: 1
-            val s2 = etSeasonEnd.text.toString().toIntOrNull() ?: 1
-            val e1 = etEpisodeStart.text.toString().toIntOrNull() ?: 1
-            val e2 = etEpisodeEnd.text.toString().toIntOrNull() ?: 1
+            val e1 = etEpStart.text.toString().toIntOrNull() ?: 1
+            val e2 = etEpEnd.text.toString().toIntOrNull() ?: 24
+            if (e2 < e1) {
+                Toast.makeText(this, "L'episode de fin doit etre >= au debut", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (e2 - e1 > 200) {
+                Toast.makeText(this, "Maximum 200 episodes a la fois", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val delayMs = delayValues[spinDelay.selectedItemPosition].toLong() * 1000
 
             var count = 0
-            for (s in s1..s2) {
-                for (e in e1..e2) {
-                    val url = urlPattern
-                        .replace("{S}", s.toString())
-                        .replace("{E}", e.toString())
-                    val epLabel = if (e < 10) "E0$e" else "E$e"
-                    val sLabel = if (s < 10) "S0$s" else "S$s"
-                    val filename = "${seriesName} ${sLabel}${epLabel}.mp4"
-                    val item = com.hitif.videodownloader.model.MediaItem(
-                        url = url,
-                        filename = filename,
-                        mediaType = com.hitif.videodownloader.model.MediaType.VIDEO
-                    )
-                    try {
-                        com.hitif.videodownloader.download.DownloadHelper.enqueue(this, item)
-                        count++
-                    } catch (_: Exception) {}
+            for (ep in e1..e2) {
+                val url = pattern.replace("{N}", ep.toString())
+                val naming = SmartNamer.smartName(pattern, ep)
+                val filename = if (naming.animeName.isNotBlank()) {
+                    "${naming.basename}.mp4"
+                } else {
+                    "Episode_${ep.toString().padStart(2, '0')}.mp4"
                 }
+                val item = com.hitif.videodownloader.model.MediaItem(
+                    url = url,
+                    filename = filename,
+                    mediaType = com.hitif.videodownloader.model.MediaType.VIDEO,
+                    pageUrl = rawUrl
+                )
+                try {
+                    com.hitif.videodownloader.download.DownloadHelper.enqueue(this, item)
+                    count++
+                } catch (_: Exception) {}
             }
             dialog.dismiss()
             Toast.makeText(this, "$count telechargement(s) lance(s)", Toast.LENGTH_LONG).show()

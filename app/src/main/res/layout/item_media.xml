@@ -112,6 +112,16 @@
                 android:contentDescription="Partager" />
 
             <ImageButton
+                android:id="@+id/btnRename"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/bg_icon_btn"
+                android:src="@android:drawable/ic_menu_edit"
+                android:padding="7dp"
+                android:contentDescription="Renommer" />
+
+            <ImageButton
                 android:id="@+id/btnDelete"
                 android:layout_width="32dp"
                 android:layout_height="32dp"

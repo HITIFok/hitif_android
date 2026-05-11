@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -9,23 +13,31 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="TELECHARGEMENT PAR SAISONS"
+        android:text="TELECHARGER UNE SAISON"
         android:textColor="@color/accent_cyan"
         android:textSize="11sp"
         android:textStyle="bold"
         android:letterSpacing="0.1" />
 
-    <!-- Nom de la serie -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Collez l'URL d'un episode, le nommage intelligent sera automatique"
+        android:textColor="@color/text_dim"
+        android:textSize="11sp" />
+
+    <!-- URL de l'episode -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="Nom de la serie"
+        android:text="URL d'un episode"
         android:textColor="@color/text_dim"
         android:textSize="12sp" />
 
     <EditText
-        android:id="@+id/etSeriesName"
+        android:id="@+id/etEpisodeUrl"
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:layout_marginTop="4dp"
@@ -34,124 +46,39 @@
         android:paddingEnd="12dp"
         android:textColor="@color/text_primary"
         android:textColorHint="@color/text_dim"
-        android:hint="Ex: Breaking Bad"
-        android:textSize="14sp"
-        android:inputType="text"
-        android:singleLine="true" />
-
-    <!-- Pattern URL -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Pattern URL des episodes"
-        android:textColor="@color/text_dim"
-        android:textSize="12sp" />
-
-    <EditText
-        android:id="@+id/etUrlPattern"
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:layout_marginTop="4dp"
-        android:background="@drawable/bg_address_bar"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:textColor="@color/text_primary"
-        android:textColorHint="@color/text_dim"
-        android:hint="https://example.com/saison{S}/ep{E}.mp4"
+        android:hint="https://site.com/anime/episode-1.html"
         android:textSize="12sp"
         android:inputType="textUri"
         android:singleLine="true" />
 
+    <!-- Pattern detecte (auto) -->
     <TextView
+        android:id="@+id/tvDetectedPattern"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="{S} = saison, {E} = episode"
+        android:layout_marginTop="6dp"
         android:textColor="@color/accent_cyan"
         android:textSize="10sp"
-        android:alpha="0.7" />
+        android:maxLines="2"
+        android:ellipsize="middle"
+        android:visibility="gone" />
 
-    <!-- Plage de saisons -->
-    <LinearLayout
-        android:layout_width="match_parent"
+    <!-- Preview du nom du fichier -->
+    <TextView
+        android:id="@+id/tvNamePreview"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="12dp"
-        android:gravity="center_vertical">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Saison debut"
-                android:textColor="@color/text_dim"
-                android:textSize="11sp" />
-
-            <EditText
-                android:id="@+id/etSeasonStart"
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_address_bar"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:textColor="@color/text_primary"
-                android:text="1"
-                android:textSize="14sp"
-                android:inputType="number"
-                android:singleLine="true" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:text="-"
-            android:textColor="@color/text_dim"
-            android:textSize="16sp" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Saison fin"
-                android:textColor="@color/text_dim"
-                android:textSize="11sp" />
-
-            <EditText
-                android:id="@+id/etSeasonEnd"
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_address_bar"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:textColor="@color/text_primary"
-                android:text="1"
-                android:textSize="14sp"
-                android:inputType="number"
-                android:singleLine="true" />
-        </LinearLayout>
-    </LinearLayout>
+        android:layout_marginTop="4dp"
+        android:textColor="@color/text_dim"
+        android:textSize="11sp"
+        android:visibility="gone" />
 
     <!-- Plage d'episodes -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
         android:gravity="center_vertical">
 
         <LinearLayout
@@ -168,7 +95,7 @@
                 android:textSize="11sp" />
 
             <EditText
-                android:id="@+id/etEpisodeStart"
+                android:id="@+id/etEpStart"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
                 android:layout_marginTop="4dp"
@@ -205,7 +132,7 @@
                 android:textSize="11sp" />
 
             <EditText
-                android:id="@+id/etEpisodeEnd"
+                android:id="@+id/etEpEnd"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
                 android:layout_marginTop="4dp"
@@ -213,20 +140,45 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:textColor="@color/text_primary"
-                android:text="10"
+                android:text="24"
                 android:textSize="14sp"
                 android:inputType="number"
                 android:singleLine="true" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Info -->
+    <!-- Delai entre episodes -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Delai entre episodes"
+            android:textColor="@color/text_dim"
+            android:textSize="11sp" />
+
+        <Spinner
+            android:id="@+id/spinDelay"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_address_bar"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+    </LinearLayout>
+
+    <!-- Info total -->
     <TextView
         android:id="@+id/tvTotalEpisodes"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="10 episode(s) au total"
+        android:layout_marginTop="12dp"
+        android:text="24 episode(s) au total"
         android:textColor="@color/accent_cyan"
         android:textSize="11sp" />
 
@@ -239,20 +191,31 @@
         android:layout_marginTop="16dp">
 
         <Button
+            android:id="@+id/btnTestUrl"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="Tester"
+            android:textColor="@color/text_dim"
+            android:backgroundTint="@color/bg_elevated"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
+
+        <Button
             android:id="@+id/btnCancelSeason"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
+            android:layout_marginStart="6dp"
             android:text="Annuler"
             android:textColor="@color/text_dim"
             android:backgroundTint="@color/bg_elevated"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp" />
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
 
         <Button
             android:id="@+id/btnStartSeason"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:text="Tout telecharger"
             android:textColor="@color/bg_primary"
             android:backgroundTint="@color/accent_cyan"
@@ -261,3 +224,5 @@
     </LinearLayout>
 
 </LinearLayout>
+
+</ScrollView>

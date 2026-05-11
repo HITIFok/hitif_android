@@ -44,7 +44,8 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
         adapter = MediaAdapter(
             onDownload = ::download,
             onDelete   = { vm.removeItem(it) },
-            onShare    = ::share
+            onShare    = ::share,
+            onRename   = ::rename
         )
         b.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         b.recyclerView.adapter = adapter
@@ -106,6 +107,10 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
             putExtra(Intent.EXTRA_SUBJECT, item.filename)
         }
         startActivity(Intent.createChooser(intent, "Partager le lien"))
+    }
+
+    private fun rename(item: MediaItem) {
+        (activity as? BrowserActivity)?.showCustomFilenameDialog(item)
     }
 
     override fun onDestroyView() {
