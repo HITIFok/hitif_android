@@ -13,6 +13,11 @@ import androidx.core.app.NotificationCompat
 import com.hitif.videodownloader.ui.DownloadHistoryActivity
 
 class DownloadReceiver : BroadcastReceiver() {
+
+    companion object {
+        const val DL_CHANNEL_ID = "hitif_download_channel"
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
         val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)

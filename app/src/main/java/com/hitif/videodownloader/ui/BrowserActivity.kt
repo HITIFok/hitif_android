@@ -458,7 +458,7 @@ class BrowserActivity : AppCompatActivity() {
             if (videoItem != null) {
                 seasonHandler.removeCallbacksAndMessages(null)
                 downloadSeasonEpisode(ep, videoItem)
-                vm.mediaItems.removeObserver(this@Observer)
+                vm.mediaItems.removeObserver(observer)
             }
         }
         vm.mediaItems.observeForever(observer)
