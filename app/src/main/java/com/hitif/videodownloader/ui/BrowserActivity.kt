@@ -1,6 +1,7 @@
 package com.hitif.videodownloader.ui
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -207,6 +208,124 @@ class BrowserActivity : AppCompatActivity() {
         binding.btnMedia.setOnClickListener {
             toggleMediaPanel()
         }
+
+        // Long press on home button opens download history
+        binding.btnHome.setOnLongClickListener {
+            startActivity(Intent(this, DownloadHistoryActivity::class.java))
+            true
+        }
+    }
+
+    private fun showSeasonDownloadDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_season_download, null)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Telechargement par saisons")
+            .setView(view)
+            .create()
+
+        val etSeriesName = view.findViewById<android.widget.EditText>(R.id.etSeriesName)
+        val etUrlPattern = view.findViewById<android.widget.EditText>(R.id.etUrlPattern)
+        val etSeasonStart = view.findViewById<android.widget.EditText>(R.id.etSeasonStart)
+        val etSeasonEnd = view.findViewById<android.widget.EditText>(R.id.etSeasonEnd)
+        val etEpisodeStart = view.findViewById<android.widget.EditText>(R.id.etEpisodeStart)
+        val etEpisodeEnd = view.findViewById<android.widget.EditText>(R.id.etEpisodeEnd)
+        val tvTotal = view.findViewById<android.widget.TextView>(R.id.tvTotalEpisodes)
+
+        fun updateTotal() {
+            try {
+                val s1 = etSeasonStart.text.toString().toIntOrNull() ?: 1
+                val s2 = etSeasonEnd.text.toString().toIntOrNull() ?: 1
+                val e1 = etEpisodeStart.text.toString().toIntOrNull() ?: 1
+                val e2 = etEpisodeEnd.text.toString().toIntOrNull() ?: 1
+                val total = (s2 - s1 + 1) * (e2 - e1 + 1)
+                tvTotal.text = "$total episode(s) au total"
+            } catch (_: Exception) {}
+        }
+
+        val watcher = object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { updateTotal() }
+        }
+        listOf(etSeasonStart, etSeasonEnd, etEpisodeStart, etEpisodeEnd).forEach {
+            it.addTextChangedListener(watcher)
+        }
+        updateTotal()
+
+        view.findViewById<android.widget.Button>(R.id.btnCancelSeason).setOnClickListener { dialog.dismiss() }
+        view.findViewById<android.widget.Button>(R.id.btnStartSeason).setOnClickListener {
+            val seriesName = etSeriesName.text.toString().trim()
+            val urlPattern = etUrlPattern.text.toString().trim()
+            if (seriesName.isBlank() || urlPattern.isBlank()) {
+                Toast.makeText(this, "Remplissez le nom et le pattern URL", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val s1 = etSeasonStart.text.toString().toIntOrNull() ?: 1
+            val s2 = etSeasonEnd.text.toString().toIntOrNull() ?: 1
+            val e1 = etEpisodeStart.text.toString().toIntOrNull() ?: 1
+            val e2 = etEpisodeEnd.text.toString().toIntOrNull() ?: 1
+
+            var count = 0
+            for (s in s1..s2) {
+                for (e in e1..e2) {
+                    val url = urlPattern
+                        .replace("{S}", s.toString())
+                        .replace("{E}", e.toString())
+                    val epLabel = if (e < 10) "E0$e" else "E$e"
+                    val sLabel = if (s < 10) "S0$s" else "S$s"
+                    val filename = "${seriesName} ${sLabel}${epLabel}.mp4"
+                    val item = com.hitif.videodownloader.model.MediaItem(
+                        url = url,
+                        filename = filename,
+                        mediaType = com.hitif.videodownloader.model.MediaType.VIDEO
+                    )
+                    try {
+                        com.hitif.videodownloader.download.DownloadHelper.enqueue(this, item)
+                        count++
+                    } catch (_: Exception) {}
+                }
+            }
+            dialog.dismiss()
+            Toast.makeText(this, "$count telechargement(s) lance(s)", Toast.LENGTH_LONG).show()
+        }
+
+        dialog.show()
+    }
+
+    private fun showCustomFilenameDialog(item: com.hitif.videodownloader.model.MediaItem) {
+        val view = layoutInflater.inflate(R.layout.dialog_custom_filename, null)
+        val etFileName = view.findViewById<android.widget.EditText>(R.id.etFileName)
+        val tvExt = view.findViewById<android.widget.TextView>(R.id.tvExtension)
+
+        etFileName.setText(item.filename.substringBeforeLast('.', item.filename))
+        tvExt.text = "Extension: .${item.filename.substringAfterLast('.', "mp4")}"
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Renommer le fichier")
+            .setView(view)
+            .create()
+
+        view.findViewById<android.widget.Button>(R.id.btnCancelName).setOnClickListener { dialog.dismiss() }
+        view.findViewById<android.widget.Button>(R.id.btnConfirmName).setOnClickListener {
+            val customName = etFileName.text.toString().trim()
+            if (customName.isBlank()) {
+                Toast.makeText(this, "Nom invalide", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val ext = item.filename.substringAfterLast('.', "mp4")
+            val renamedItem = item.copy(
+                filename = "$customName.$ext"
+            )
+            try {
+                com.hitif.videodownloader.download.DownloadHelper.enqueue(this, renamedItem)
+                Toast.makeText(this, "Telechargement lance : $customName.$ext", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     private fun toggleMediaPanel() {

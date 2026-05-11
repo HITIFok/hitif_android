@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:layout_marginStart="8dp"
+    android:layout_marginEnd="8dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
+    android:background="@color/bg_card">
+
+    <!-- File info -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Status icon -->
+        <ImageView
+            android:id="@+id/ivStatus"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_download"
+            android:contentDescription="Statut" />
+
+        <!-- File name + details -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+
+            <TextView
+                android:id="@+id/tvFileName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="filename.mp4"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:maxLines="2"
+                android:ellipsize="middle" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp">
+
+                <TextView
+                    android:id="@+id/tvFileSize"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="12.5 MB"
+                    android:textColor="@color/text_dim"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Termine"
+                    android:textColor="@color/status_success"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="11/05/2026 14:30"
+                android:textColor="@color/text_dim"
+                android:textSize="10sp"
+                android:alpha="0.7" />
+        </LinearLayout>
+
+        <!-- Open button -->
+        <ImageButton
+            android:id="@+id/btnOpenFile"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_icon_btn_cyan"
+            android:src="@drawable/ic_share"
+            android:padding="8dp"
+            android:contentDescription="Ouvrir" />
+
+        <!-- Delete button -->
+        <ImageButton
+            android:id="@+id/btnDeleteFile"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_icon_btn"
+            android:src="@drawable/ic_trash"
+            android:padding="8dp"
+            android:contentDescription="Supprimer" />
+    </LinearLayout>
+
+    <!-- Progress bar (for active downloads) -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginTop="8dp"
+        android:progressTint="@color/accent_cyan"
+        android:progressBackgroundTint="@color/bg_surface"
+        android:max="100"
+        android:visibility="gone" />
+
+</LinearLayout>

@@ -67,7 +67,29 @@
             android:background="@drawable/bg_icon_btn_cyan"
             android:src="@drawable/ic_download_all"
             android:padding="8dp"
-            android:contentDescription="Tout télécharger" />
+            android:contentDescription="Tout telecharger" />
+
+        <!-- Season download -->
+        <ImageButton
+            android:id="@+id/btnSeasonDownload"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_icon_btn"
+            android:src="@drawable/ic_holo_cube"
+            android:padding="8dp"
+            android:contentDescription="Telecharger saisons" />
+
+        <!-- History -->
+        <ImageButton
+            android:id="@+id/btnOpenHistory"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_icon_btn"
+            android:src="@drawable/ic_home"
+            android:padding="8dp"
+            android:contentDescription="Historique telechargements" />
 
         <!-- Clear -->
         <ImageButton

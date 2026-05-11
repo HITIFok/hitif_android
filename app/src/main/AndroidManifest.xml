@@ -45,6 +45,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Download history activity -->
+        <activity
+            android:name=".ui.DownloadHistoryActivity"
+            android:exported="false"
+            android:label="Telechargements"
+            android:parentActivityName=".ui.BrowserActivity" />
+
         <!-- Download notification channel -->
         <receiver
             android:name=".download.DownloadReceiver"

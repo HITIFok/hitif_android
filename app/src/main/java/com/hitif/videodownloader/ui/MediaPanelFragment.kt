@@ -55,16 +55,25 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
         b.btnClose.setOnClickListener { dismiss() }
         b.btnClearAll.setOnClickListener {
             vm.clearMedia()
-            Toast.makeText(requireContext(), "Liste vidée", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Liste videe", Toast.LENGTH_SHORT).show()
         }
         b.btnDownloadAll.setOnClickListener {
             val items = vm.mediaItems.value.orEmpty()
             if (items.isEmpty()) {
-                Toast.makeText(requireContext(), "Aucun média détecté", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Aucun media detecte", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             items.forEach { download(it) }
-            Toast.makeText(requireContext(), "${items.size} téléchargement(s) lancé(s)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "${items.size} telechargement(s) lance(s)", Toast.LENGTH_SHORT).show()
+        }
+        // Season download button - delegate to activity
+        b.btnSeasonDownload.setOnClickListener {
+            dismiss()
+            (activity as? BrowserActivity)?.showSeasonDownloadDialog()
+        }
+        // Download history button
+        b.btnOpenHistory.setOnClickListener {
+            startActivity(Intent(requireContext(), DownloadHistoryActivity::class.java))
         }
     }
 
