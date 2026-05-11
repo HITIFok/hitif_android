@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IMPORTANT: These font files must be downloaded and placed in res/font/
+  before building. Download from Google Fonts:
+    - Orbitron: https://fonts.google.com/specimen/Orbitron
+      → orbitron_regular.ttf, orbitron_medium.ttf, orbitron_bold.ttf
+    - Rajdhani: https://fonts.google.com/specimen/Rajdhani
+      → rajdhani_regular.ttf, rajdhani_medium.ttf, rajdhani_semibold.ttf
+
+  OR use the downloadable fonts mechanism (see font_orbitron.xml / font_rajdhani.xml).
+-->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- Downloadable fonts fallback to system if unavailable -->
+</font-family>

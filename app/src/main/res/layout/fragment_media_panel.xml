@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bottom_sheet">
+
+    <!-- ── Drag handle ──────────────────────────────────────────────── -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="6dp"
+        android:background="@drawable/bg_drag_handle" />
+
+    <!-- ── Header ────────────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_panel_header">
+
+        <!-- Holo icon -->
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:src="@drawable/ic_holo_cube"
+            android:layout_marginEnd="10dp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="VIDEO DOWNLOAD"
+                android:textColor="@color/accent_cyan"
+                android:textSize="11sp"
+                android:fontFamily="@font/orbitron"
+                android:letterSpacing="0.12" />
+
+            <TextView
+                android:id="@+id/tvMediaCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="En attente de médias…"
+                android:textColor="@color/text_dim"
+                android:textSize="11sp"
+                android:fontFamily="@font/rajdhani_medium"
+                android:letterSpacing="0.04" />
+        </LinearLayout>
+
+        <!-- Download all -->
+        <ImageButton
+            android:id="@+id/btnDownloadAll"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_icon_btn_cyan"
+            android:src="@drawable/ic_download_all"
+            android:padding="8dp"
+            android:contentDescription="Tout télécharger" />
+
+        <!-- Clear -->
+        <ImageButton
+            android:id="@+id/btnClearAll"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_icon_btn"
+            android:src="@drawable/ic_trash"
+            android:padding="8dp"
+            android:contentDescription="Vider la liste" />
+
+        <!-- Close -->
+        <ImageButton
+            android:id="@+id/btnClose"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_icon_btn"
+            android:src="@drawable/ic_close"
+            android:padding="9dp"
+            android:contentDescription="Fermer" />
+
+    </LinearLayout>
+
+    <!-- ── Cyan divider ──────────────────────────────────────────────── -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@drawable/bg_divider_cyan" />
+
+    <!-- ── Empty state ───────────────────────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/emptyState"
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <ImageView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:src="@drawable/ic_holo_cube_large"
+            android:alpha="0.6" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="EN ATTENTE DE MÉDIAS…"
+            android:textColor="@color/accent_cyan"
+            android:textSize="10sp"
+            android:fontFamily="@font/orbitron"
+            android:letterSpacing="0.25"
+            android:alpha="0.7" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Naviguez sur une page contenant des vidéos"
+            android:textColor="@color/text_dim"
+            android:textSize="12sp"
+            android:fontFamily="@font/rajdhani_medium"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- ── Media list ────────────────────────────────────────────────── -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="12dp"
+        android:visibility="gone" />
+
+</LinearLayout>
