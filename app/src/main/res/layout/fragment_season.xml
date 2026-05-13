@@ -31,13 +31,13 @@
                 android:fontFamily="@font/orbitron"/>
         </LinearLayout>
 
-        <Button android:id="@+id/btnSelectAll"
+        <android.widget.Button android:id="@+id/btnSelectAll"
             android:layout_width="wrap_content" android:layout_height="30dp"
             android:text="TOUT" android:textColor="@color/accent_cyan"
             android:textSize="9sp" android:background="@drawable/bg_icon_btn"
             android:paddingStart="8dp" android:paddingEnd="8dp" android:layout_marginEnd="4dp"/>
 
-        <Button android:id="@+id/btnDeselectAll"
+        <android.widget.Button android:id="@+id/btnDeselectAll"
             android:layout_width="wrap_content" android:layout_height="30dp"
             android:text="AUCUN" android:textColor="@color/text_dim"
             android:textSize="9sp" android:background="@drawable/bg_icon_btn"
@@ -63,7 +63,7 @@
         android:orientation="horizontal" android:padding="12dp"
         android:background="@drawable/bg_glass_panel_header">
 
-        <Button android:id="@+id/btnDownloadSelected"
+        <android.widget.Button android:id="@+id/btnDownloadSelected"
             android:layout_width="match_parent" android:layout_height="44dp"
             android:text="⬇  TÉLÉCHARGER LA SÉLECTION"
             android:textColor="@color/bg_primary"

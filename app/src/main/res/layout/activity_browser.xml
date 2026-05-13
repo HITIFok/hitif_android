@@ -84,7 +84,7 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Season FAB (appears when season detected) -->
-    <Button
+    <android.widget.Button
         android:id="@+id/btnSeason"
         android:layout_width="wrap_content"
         android:layout_height="36dp"

@@ -31,7 +31,7 @@
                 android:fontFamily="@font/rajdhani_medium"/>
         </LinearLayout>
 
-        <Button android:id="@+id/btnClearFailed"
+        <android.widget.Button android:id="@+id/btnClearFailed"
             android:layout_width="wrap_content" android:layout_height="30dp"
             android:text="✗ ÉCHECS" android:textColor="@color/status_error"
             android:textSize="9sp" android:background="@drawable/bg_icon_btn"
