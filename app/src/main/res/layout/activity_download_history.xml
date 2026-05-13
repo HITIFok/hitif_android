@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@drawable/bg_gradient_main">
+    android:background="@color/bg_primary">
 
     <!-- Header -->
     <LinearLayout
@@ -13,8 +13,8 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:gravity="center_vertical"
-        android:background="@drawable/bg_glass_toolbar"
-        android:elevation="6dp">
+        android:background="@color/bg_toolbar"
+        android:elevation="4dp">
 
         <ImageButton
             android:id="@+id/btnBackHistory"
@@ -32,10 +32,9 @@
             android:layout_marginStart="12dp"
             android:text="TELECHARGEMENTS"
             android:textColor="@color/accent_cyan"
-            android:fontFamily="@font/orbitron"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:letterSpacing="0.1" />
+            android:letterSpacing="0.08" />
 
         <ImageButton
             android:id="@+id/btnClearHistory"
@@ -50,7 +49,9 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="@drawable/bg_divider_cyan" />
+        android:background="@color/border_cyan" />
+
+    <!-- Stats bar: count + total size + storage -->
     <LinearLayout
         android:id="@+id/statsBar"
         android:layout_width="match_parent"
@@ -60,7 +61,7 @@
         android:paddingEnd="16dp"
         android:paddingTop="8dp"
         android:paddingBottom="8dp"
-        android:background="@drawable/bg_glass_panel_header">
+        android:background="@color/bg_surface">
 
         <!-- Row 1: File count + total downloaded size -->
         <LinearLayout
@@ -75,7 +76,6 @@
                 android:layout_height="wrap_content"
                 android:text="0 fichier(s)"
                 android:textColor="@color/text_dim"
-                android:fontFamily="@font/rajdhani_medium"
                 android:textSize="12sp" />
 
             <View
@@ -89,7 +89,6 @@
                 android:layout_height="wrap_content"
                 android:text="0 MB"
                 android:textColor="@color/text_dim"
-                android:fontFamily="@font/rajdhani_medium"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -114,7 +113,6 @@
                 android:layout_height="wrap_content"
                 android:text="Stockage: calcul..."
                 android:textColor="@color/text_dim"
-                android:fontFamily="@font/rajdhani_medium"
                 android:textSize="11sp" />
 
             <View
@@ -139,7 +137,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="@drawable/bg_divider_cyan" />
+        android:background="@color/border_cyan" />
 
     <!-- Download list -->
     <androidx.recyclerview.widget.RecyclerView
@@ -174,7 +172,6 @@
             android:layout_marginTop="12dp"
             android:text="Aucun telechargement"
             android:textColor="@color/text_dim"
-            android:fontFamily="@font/rajdhani_medium"
             android:textSize="14sp" />
 
         <TextView

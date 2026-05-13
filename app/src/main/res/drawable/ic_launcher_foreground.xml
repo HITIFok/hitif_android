@@ -22,7 +22,6 @@
           android:strokeLineCap="round" android:strokeLineJoin="round"
           android:pathData="M54,40 L54,62 M47,55 L54,63 L61,55"/>
     <!-- Ring -->
-    <path android:fillColor="#00000000"
-          android:strokeColor="#00E5FF" android:strokeWidth="1.5"
-          android:pathData="M34,75 A20,5 0 1,1 73.99,75 Z"/>
+    <oval android:left="34dp" android:top="70dp" android:right="74dp" android:bottom="80dp"
+          android:strokeColor="#00E5FF" android:strokeWidth="1.5" android:fillColor="#00000000"/>
 </vector>

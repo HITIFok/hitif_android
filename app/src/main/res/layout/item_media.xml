@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView
+<androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -8,10 +8,10 @@
     android:layout_marginEnd="12dp"
     android:layout_marginTop="6dp"
     app:cardBackgroundColor="@color/bg_card"
-    app:cardCornerRadius="16dp"
+    app:cardCornerRadius="12dp"
     app:cardElevation="0dp"
-    app:strokeColor="@color/border_glass"
-    app:strokeWidth="1.5dp">
+    app:strokeColor="@color/border_cyan"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -35,7 +35,7 @@
                 android:text="MP4"
                 android:textColor="@color/accent_cyan"
                 android:textSize="10sp"
-                android:fontFamily="@font/rajdhani_medium"
+                android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.05" />
 
             <TextView
@@ -45,7 +45,7 @@
                 android:text="H"
                 android:textColor="@color/text_dim"
                 android:textSize="9sp"
-                android:fontFamily="@font/rajdhani_medium" />
+                android:fontFamily="sans-serif" />
         </LinearLayout>
 
         <!-- Info -->
@@ -64,7 +64,7 @@
                 android:text="video_filename.mp4"
                 android:textColor="@color/text_primary"
                 android:textSize="12sp"
-                android:fontFamily="@font/rajdhani_medium"
+                android:fontFamily="sans-serif"
                 android:maxLines="2"
                 android:ellipsize="middle" />
 
@@ -82,7 +82,7 @@
                     android:text="— MB"
                     android:textColor="@color/text_dim"
                     android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    android:fontFamily="sans-serif" />
 
                 <TextView
                     android:id="@+id/tvDuration"
@@ -91,7 +91,7 @@
                     android:layout_marginStart="8dp"
                     android:textColor="@color/text_dim"
                     android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    android:fontFamily="sans-serif" />
             </LinearLayout>
         </LinearLayout>
 
@@ -134,4 +134,4 @@
 
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+</androidx.cardview.widget.CardView>

@@ -8,7 +8,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="20dp"
-    android:background="@drawable/bg_glass_panel_header">
+    android:background="@color/bg_surface">
 
     <TextView
         android:layout_width="wrap_content"
@@ -17,8 +17,7 @@
         android:textColor="@color/accent_cyan"
         android:textSize="11sp"
         android:textStyle="bold"
-        android:letterSpacing="0.1"
-        android:fontFamily="@font/orbitron" />
+        android:letterSpacing="0.1" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -26,16 +25,16 @@
         android:layout_marginTop="4dp"
         android:text="Collez l'URL d'un episode, le nommage intelligent sera automatique"
         android:textColor="@color/text_dim"
-        android:textSize="11sp"
-        android:fontFamily="@font/rajdhani_medium" />
+        android:textSize="11sp" />
+
+    <!-- URL de l'episode -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="URL d'un episode"
         android:textColor="@color/text_dim"
-        android:textSize="12sp"
-        android:fontFamily="@font/rajdhani_medium" />
+        android:textSize="12sp" />
 
     <EditText
         android:id="@+id/etEpisodeUrl"
@@ -49,7 +48,6 @@
         android:textColorHint="@color/text_dim"
         android:hint="https://site.com/anime/episode-1.html"
         android:textSize="12sp"
-        android:fontFamily="@font/rajdhani_medium"
         android:inputType="textUri"
         android:singleLine="true" />
 
@@ -61,7 +59,6 @@
         android:layout_marginTop="6dp"
         android:textColor="@color/accent_cyan"
         android:textSize="10sp"
-        android:fontFamily="@font/rajdhani_medium"
         android:maxLines="2"
         android:ellipsize="middle"
         android:visibility="gone" />
@@ -74,7 +71,6 @@
         android:layout_marginTop="4dp"
         android:textColor="@color/text_dim"
         android:textSize="11sp"
-        android:fontFamily="@font/rajdhani_medium"
         android:visibility="gone" />
 
     <!-- Plage d'episodes -->
@@ -96,8 +92,7 @@
                 android:layout_height="wrap_content"
                 android:text="Episode debut"
                 android:textColor="@color/text_dim"
-                android:textSize="11sp"
-                android:fontFamily="@font/rajdhani_medium" />
+                android:textSize="11sp" />
 
             <EditText
                 android:id="@+id/etEpStart"
@@ -110,7 +105,6 @@
                 android:textColor="@color/text_primary"
                 android:text="1"
                 android:textSize="14sp"
-                android:fontFamily="@font/rajdhani_medium"
                 android:inputType="number"
                 android:singleLine="true" />
         </LinearLayout>
@@ -122,8 +116,7 @@
             android:layout_marginEnd="8dp"
             android:text="-"
             android:textColor="@color/text_dim"
-            android:textSize="16sp"
-            android:fontFamily="@font/rajdhani_medium" />
+            android:textSize="16sp" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -136,8 +129,7 @@
                 android:layout_height="wrap_content"
                 android:text="Episode fin"
                 android:textColor="@color/text_dim"
-                android:textSize="11sp"
-                android:fontFamily="@font/rajdhani_medium" />
+                android:textSize="11sp" />
 
             <EditText
                 android:id="@+id/etEpEnd"
@@ -150,7 +142,6 @@
                 android:textColor="@color/text_primary"
                 android:text="24"
                 android:textSize="14sp"
-                android:fontFamily="@font/rajdhani_medium"
                 android:inputType="number"
                 android:singleLine="true" />
         </LinearLayout>
@@ -170,8 +161,7 @@
             android:layout_weight="1"
             android:text="Delai entre episodes"
             android:textColor="@color/text_dim"
-            android:textSize="11sp"
-            android:fontFamily="@font/rajdhani_medium" />
+            android:textSize="11sp" />
 
         <Spinner
             android:id="@+id/spinDelay"
@@ -190,8 +180,7 @@
         android:layout_marginTop="12dp"
         android:text="24 episode(s) au total"
         android:textColor="@color/accent_cyan"
-        android:textSize="11sp"
-        android:fontFamily="@font/rajdhani_medium" />
+        android:textSize="11sp" />
 
     <!-- Boutons -->
     <LinearLayout

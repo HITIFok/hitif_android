@@ -8,7 +8,7 @@
     android:layout_marginEnd="8dp"
     android:layout_marginTop="4dp"
     android:layout_marginBottom="4dp"
-    android:background="@drawable/bg_glass_card">
+    android:background="@color/bg_card">
 
     <!-- File info -->
     <LinearLayout
@@ -40,7 +40,6 @@
                 android:text="filename.mp4"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
-                android:fontFamily="@font/rajdhani_medium"
                 android:maxLines="2"
                 android:ellipsize="middle" />
 
@@ -56,8 +55,7 @@
                     android:layout_height="wrap_content"
                     android:text="12.5 MB"
                     android:textColor="@color/text_dim"
-                    android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    android:textSize="11sp" />
 
                 <TextView
                     android:id="@+id/tvStatus"
@@ -66,8 +64,7 @@
                     android:layout_marginStart="8dp"
                     android:text="Termine"
                     android:textColor="@color/status_success"
-                    android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    android:textSize="11sp" />
             </LinearLayout>
 
             <TextView
@@ -78,7 +75,6 @@
                 android:text="11/05/2026 14:30"
                 android:textColor="@color/text_dim"
                 android:textSize="10sp"
-                android:fontFamily="@font/rajdhani_medium"
                 android:alpha="0.7" />
         </LinearLayout>
 
