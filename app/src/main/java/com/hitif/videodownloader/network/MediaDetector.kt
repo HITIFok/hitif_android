@@ -170,14 +170,14 @@ class MediaDetector(
 
                     val rangeResp = http.newCall(rangeReq).execute()
                     // Content-Range: bytes 0-1/TOTAL_SIZE
-                    val contentRange = rangeResp.header("Content-Range", "")
+                    val contentRange = rangeResp.header("Content-Range") ?: ""
                     if (contentRange.contains('/')) {
                         val totalStr = contentRange.substringAfterLast('/').trim()
                         size = totalStr.toLongOrNull() ?: -1L
                     }
                     // Also try Content-Length as fallback (some servers return total here)
                     if (size <= 0) {
-                        val cl = rangeResp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
+                        val cl = (rangeResp.header("Content-Length") ?: "-1").toLongOrNull() ?: -1L
                         // Content-Length in a 206 response is the chunk size, not total
                         // But if status is 200, it's the total
                         if (rangeResp.code == 200 && cl > 2) size = cl
