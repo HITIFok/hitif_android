@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@drawable/bg_bottom_sheet">
+    android:background="@drawable/bg_glass_bottom_sheet">
 
     <View android:layout_width="40dp" android:layout_height="4dp"
         android:layout_gravity="center_horizontal" android:layout_marginTop="10dp"
@@ -13,7 +13,7 @@
     <!-- Header -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
         android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="8dp"
-        android:gravity="center_vertical" android:background="@drawable/bg_panel_header">
+        android:gravity="center_vertical" android:background="@drawable/bg_glass_panel_header">
 
         <ImageView android:layout_width="22dp" android:layout_height="22dp"
             android:src="@drawable/ic_holo_cube" android:layout_marginEnd="10dp"/>
@@ -22,13 +22,15 @@
             android:layout_weight="1" android:orientation="vertical">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="VIDEO DOWNLOAD" android:textColor="@color/accent_cyan"
-                android:textSize="11sp" android:letterSpacing="0.12"/>
+                android:textSize="11sp" android:letterSpacing="0.12"
+                android:fontFamily="@font/orbitron"/>
             <TextView android:id="@+id/tvMediaCount" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:text="En attente de médias…"
-                android:textColor="@color/text_dim" android:textSize="11sp"/>
+                android:textColor="@color/text_dim" android:textSize="11sp"
+                android:fontFamily="@font/rajdhani_medium"/>
         </LinearLayout>
 
-        <Button android:id="@+id/btnSeason"
+        <android.widget.Button android:id="@+id/btnSeason"
             android:layout_width="wrap_content" android:layout_height="30dp"
             android:text="📺 SAISONS" android:textColor="@color/accent_magenta"
             android:textSize="9sp" android:background="@drawable/bg_icon_btn"
@@ -63,10 +65,12 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="16dp" android:text="EN ATTENTE DE MÉDIAS…"
             android:textColor="@color/accent_cyan" android:textSize="10sp"
-            android:letterSpacing="0.25" android:alpha="0.7"/>
+            android:letterSpacing="0.25" android:alpha="0.7"
+            android:fontFamily="@font/orbitron"/>
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="8dp" android:text="Naviguez sur une page contenant des vidéos"
-            android:textColor="@color/text_dim" android:textSize="12sp" android:gravity="center"/>
+            android:textColor="@color/text_dim" android:textSize="12sp" android:gravity="center"
+            android:fontFamily="@font/rajdhani_medium"/>
     </LinearLayout>
 
     <!-- Media list -->
