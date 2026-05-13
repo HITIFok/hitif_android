@@ -51,6 +51,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Download history activity -->
+        <activity
+            android:name=".ui.DownloadHistoryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HITIFBrowser" />
+
         <!-- Download notification channel -->
         <receiver
             android:name=".download.DownloadReceiver"
