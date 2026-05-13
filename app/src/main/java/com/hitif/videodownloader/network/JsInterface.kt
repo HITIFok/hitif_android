@@ -2,6 +2,7 @@ package com.hitif.videodownloader.network
 
 import android.webkit.JavascriptInterface
 import androidx.lifecycle.MutableLiveData
+import com.hitif.videodownloader.download.WebViewFetchHelper
 
 /**
  * Native object exposed to JavaScript as window.HITIFAndroid.

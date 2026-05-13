@@ -1,201 +1,340 @@
 package com.hitif.videodownloader.download
 
-import android.app.DownloadManager
-import android.content.Context
-import android.net.Uri
-import android.os.Build
 import android.os.Environment
-import android.os.StatFs
 import android.util.Log
-import android.widget.Toast
+import android.webkit.CookieManager
+import com.hitif.videodownloader.db.AppDatabase
+import com.hitif.videodownloader.db.DownloadRecord
 import com.hitif.videodownloader.model.MediaItem
 import com.hitif.videodownloader.model.MediaType
+import com.hitif.videodownloader.network.SmartNaming
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.File
+import java.net.URL
 
+/**
+ * Download orchestrator — ALL downloads go through our own pipeline
+ * (HlsDownloader or TurboDownloadEngine), never through Android DownloadManager.
+ * Progress is tracked via Room DB + DownloadNotificationManager.
+ */
 object DownloadHelper {
 
-    private const val TAG = "HITIF_DL"
-    // Minimum storage required to start a download (100 MB)
-    private const val MIN_STORAGE_MB = 100L
+    private const val TAG = "DownloadHelper"
+    private val scope = CoroutineScope(Dispatchers.IO)
 
-    fun enqueue(context: Context, item: MediaItem): Long {
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    private var initialized = false
 
-        val safeName = sanitizeFilename(item.filename)
-
-        val subPath = when (item.mediaType) {
-            MediaType.AUDIO -> "HITIF/Audio/$safeName"
-            else            -> "HITIF/Video/$safeName"
-        }
-
-        // ── Storage check ────────────────────────────────────────────────
-        val availableMB = getAvailableStorageMB(context)
-        if (availableMB >= 0 && availableMB < MIN_STORAGE_MB) {
-            Log.w(TAG, "Storage presque pleine: ${availableMB}MB disponibles")
-            Toast.makeText(
-                context,
-                "Espace insuffisant: ${availableMB}MB libres. Minimum requis: ${MIN_STORAGE_MB}MB",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-
-        val request = DownloadManager.Request(Uri.parse(item.url)).apply {
-            setTitle(safeName)
-            setDescription("HITIF Video Downloader - Telechargement en cours...")
-            setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subPath)
-            // Only use DownloadManager's own notification — no custom duplicate
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            allowScanningByMediaScanner()
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI or
-                        DownloadManager.Request.NETWORK_MOBILE)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                setRequiresCharging(false)
-                setRequiresDeviceIdle(false)
-            }
-
-            // Pass headers that help some CDNs authenticate
-            if (item.pageUrl.isNotBlank()) {
-                addRequestHeader("Referer", item.pageUrl)
-                addRequestHeader("Origin", item.pageUrl.substringBeforeLast('/'))
-            }
-            addRequestHeader("User-Agent",
-                "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
-            addRequestHeader("Accept", "*/*")
-            addRequestHeader("Accept-Encoding", "identity")
-            addRequestHeader("Connection", "keep-alive")
-        }
-
-        val downloadId = dm.enqueue(request)
-        Log.d(TAG, "Download enqueued: id=$downloadId name=$safeName storage=${availableMB}MB")
-        return downloadId
+    /** Must be called once from Application or first Activity */
+    fun init(context: android.content.Context) {
+        if (initialized) return
+        initialized = true
+        DownloadNotificationManager.init(context)
     }
 
-    fun sanitizeFilename(filename: String): String {
-        return filename
-            .replace(Regex("[^a-zA-Z0-9._\\-\\s\\p{L}\\p{M}]"), "_")
-            .replace(Regex("_+"), "_")
-            .replace(Regex("\\.\\.+"), ".")
-            .trim('_')
-            .take(200)
-            .ifBlank { "HITIF_${System.currentTimeMillis()}" }
-    }
-
-    fun queryProgress(context: Context, downloadId: Long): DownloadProgress {
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val q  = DownloadManager.Query().setFilterById(downloadId)
-        val c  = dm.query(q)
-        return if (c != null && c.moveToFirst()) {
-            val status   = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            val received = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-            val total    = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-            c.close()
-            DownloadProgress(status, received, total)
-        } else {
-            c?.close()
-            DownloadProgress(DownloadManager.STATUS_FAILED, 0, 0)
-        }
-    }
-
-    /**
-     * Check storage space available for downloads.
-     * Returns available MB, or -1 if it cannot be determined.
-     */
-    fun getAvailableStorageMB(context: Context): Long {
-        return try {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val stat = StatFs(downloadsDir.absolutePath)
-            val availableBytes = stat.availableBytes
-            availableBytes / (1024 * 1024)
+    /** Start the foreground service for notifications — called lazily */
+    @Synchronized
+    private fun ensureService(context: android.content.Context) {
+        if (!initialized) init(context)
+        try {
+            DownloadProgressService.start(context)
         } catch (e: Exception) {
-            Log.w(TAG, "Cannot check storage", e)
-            -1L
+            Log.e(TAG, "Failed to start DownloadProgressService: ${e.message}")
         }
     }
 
-    /**
-     * Get total storage capacity in MB.
-     */
-    fun getTotalStorageMB(context: Context): Long {
-        return try {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val stat = StatFs(downloadsDir.absolutePath)
-            stat.totalBytes / (1024 * 1024)
-        } catch (e: Exception) {
-            -1L
+    fun enqueue(context: android.content.Context, item: MediaItem): Long {
+        if (!initialized) init(context)
+
+        val naming = SmartNaming.build(item)
+
+        return when (item.mediaType) {
+            MediaType.HLS -> downloadHls(context, item, naming)
+            else          -> downloadDirect(context, item, naming)
         }
     }
 
-    /**
-     * Get used storage in MB.
-     */
-    fun getUsedStorageMB(context: Context): Long {
-        val total = getTotalStorageMB(context)
-        val available = getAvailableStorageMB(context)
-        return if (total >= 0 && available >= 0) total - available else -1L
+    fun enqueueBatch(context: android.content.Context, items: List<MediaItem>): List<Pair<MediaItem, Long>> {
+        return items.map { item -> item to enqueue(context, item) }
     }
 
-    /**
-     * Get a human-readable storage info string like "2.3 GB libres / 64 GB total"
-     */
-    fun getStorageInfoText(context: Context): String {
-        val available = getAvailableStorageMB(context)
-        val total = getTotalStorageMB(context)
-        return if (available < 0 || total < 0) {
-            "Stockage: inconnu"
-        } else {
-            val availStr = if (available >= 1024) String.format("%.1f GB", available / 1024.0)
-                           else "${available} MB"
-            val totalStr = if (total >= 1024) String.format("%.1f GB", total / 1024.0)
-                           else "${total} MB"
-            "$availStr libres / $totalStr"
+    // ========================================================================
+    // HLS download (m3u8 → parse → download segments → merge → .mp4)
+    // ========================================================================
+
+    private fun downloadHls(
+        context: android.content.Context,
+        item: MediaItem,
+        naming: SmartNaming.NameResult
+    ): Long {
+        val subDir = buildSubDir(item)
+        val safeFilename = sanitizeFilename(naming.filename)
+
+        val headers = buildHeaders(item)
+        val db = AppDatabase.getInstance(context)
+
+        // Insert record
+        scope.launch {
+            try {
+                db.downloadDao().insert(
+                    DownloadRecord(
+                        downloadManagerId = -1L,
+                        url = item.url, filename = safeFilename,
+                        pageTitle = item.pageTitle, pageUrl = item.pageUrl,
+                        mimeType = "video/mp4", mediaType = MediaType.HLS.name,
+                        sizeBytes = item.sizeBytes,
+                        seriesName = naming.seriesName, season = naming.season, episode = naming.episode,
+                        state = "DOWNLOADING", startedAt = System.currentTimeMillis()
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to insert HLS record: ${e.message}")
+            }
+            ensureService(context)
         }
+
+        val throttler = DbThrottler(db, item.url, scope)
+
+        HlsDownloader.download(
+            context = context, m3u8Url = item.url,
+            filename = safeFilename, subDir = subDir, headers = headers,
+            callback = object : TurboCallback {
+                override fun onProgress(progress: TurboProgress) {
+                    try {
+                        DownloadNotificationManager.showProgress(
+                            url = item.url, title = safeFilename,
+                            bytesDownloaded = progress.bytesDownloaded,
+                            totalBytes = progress.totalBytes,
+                            speedBps = progress.speedBps, percent = progress.percent
+                        )
+                    } catch (_: Exception) {}
+                    throttler.update(progress)
+                }
+
+                override fun onComplete(file: File) {
+                    try {
+                        scope.launch {
+                            try {
+                                db.downloadDao().completeDownloadByUrl(
+                                    url = item.url, state = "COMPLETED",
+                                    ts = System.currentTimeMillis(), fileSize = file.length()
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to complete HLS record: ${e.message}")
+                            }
+                        }
+                        DownloadNotificationManager.showComplete(item.url, safeFilename, file.length())
+                    } catch (_: Exception) {}
+                }
+
+                override fun onError(error: Throwable) {
+                    Log.e(TAG, "HLS error: ${error.message}", error)
+                    try {
+                        scope.launch {
+                            try {
+                                db.downloadDao().updateStateByUrl(
+                                    url = item.url, state = "FAILED", ts = System.currentTimeMillis()
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to update HLS error: ${e.message}")
+                            }
+                        }
+                        DownloadNotificationManager.showError(item.url, safeFilename, error.message ?: "Erreur inconnue")
+                    } catch (_: Exception) {}
+                }
+            }
+        )
+        return -1L
     }
 
-    /**
-     * Check if storage is critically low (< 100 MB).
-     */
-    fun isStorageCriticallyLow(context: Context): Boolean {
-        val available = getAvailableStorageMB(context)
-        return available >= 0 && available < MIN_STORAGE_MB
+    // ========================================================================
+    // Direct download (mp4, mkv, webm, etc.) via TurboDownloadEngine
+    // ========================================================================
+
+    private fun downloadDirect(
+        context: android.content.Context,
+        item: MediaItem,
+        naming: SmartNaming.NameResult
+    ): Long {
+        val subDir = buildSubDir(item, naming)
+        val safeFilename = naming.filename
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val destPath = "${downloadsDir.absolutePath}/$subDir/$safeFilename"
+
+        val headers = buildHeaders(item)
+        val db = AppDatabase.getInstance(context)
+
+        // Insert record
+        scope.launch {
+            try {
+                db.downloadDao().insert(
+                    DownloadRecord(
+                        downloadManagerId = -1L,
+                        url = item.url, filename = safeFilename,
+                        pageTitle = item.pageTitle, pageUrl = item.pageUrl,
+                        mimeType = item.mimeType, mediaType = item.mediaType.name,
+                        sizeBytes = item.sizeBytes,
+                        seriesName = naming.seriesName, season = naming.season, episode = naming.episode,
+                        state = "DOWNLOADING", startedAt = System.currentTimeMillis()
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to insert direct record: ${e.message}")
+            }
+            ensureService(context)
+        }
+
+        val throttler = DbThrottler(db, item.url, scope)
+
+        TurboDownloadEngine.download(
+            context = context, url = item.url, destPath = destPath, headers = headers,
+            callback = object : TurboCallback {
+                override fun onProgress(progress: TurboProgress) {
+                    try {
+                        DownloadNotificationManager.showProgress(
+                            url = item.url, title = safeFilename,
+                            bytesDownloaded = progress.bytesDownloaded,
+                            totalBytes = progress.totalBytes,
+                            speedBps = progress.speedBps, percent = progress.percent
+                        )
+                    } catch (_: Exception) {}
+                    throttler.update(progress)
+                }
+
+                override fun onComplete(file: File) {
+                    try {
+                        scope.launch {
+                            try {
+                                db.downloadDao().completeDownloadByUrl(
+                                    url = item.url, state = "COMPLETED",
+                                    ts = System.currentTimeMillis(), fileSize = file.length()
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to complete direct record: ${e.message}")
+                            }
+                        }
+                        DownloadNotificationManager.showComplete(item.url, safeFilename, file.length())
+                        DownloadNotificationManager.dismiss(item.url)
+
+                        val ext = safeFilename.substringAfterLast('.', "mp4")
+                        val mimeMap = mapOf("mp4" to "video/mp4", "mkv" to "video/x-matroska",
+                            "webm" to "video/webm", "mp3" to "audio/mpeg", "m4a" to "audio/mp4")
+                        android.media.MediaScannerConnection.scanFile(
+                            context, arrayOf(file.absolutePath),
+                            arrayOf(mimeMap[ext] ?: "video/mp4"), null
+                        )
+                    } catch (_: Exception) {}
+                }
+
+                override fun onError(error: Throwable) {
+                    Log.e(TAG, "Direct download error: ${error.message}", error)
+                    try {
+                        scope.launch {
+                            try {
+                                db.downloadDao().updateStateByUrl(
+                                    url = item.url, state = "FAILED", ts = System.currentTimeMillis()
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to update direct error: ${e.message}")
+                            }
+                        }
+                        DownloadNotificationManager.showError(item.url, safeFilename, error.message ?: "Erreur inconnue")
+                    } catch (_: Exception) {}
+                }
+            }
+        )
+        return -1L
     }
-}
 
-data class DownloadProgress(
-    val status: Int,
-    val bytesDownloaded: Long,
-    val totalBytes: Long
-) {
-    val percent: Int get() = if (totalBytes > 0) ((bytesDownloaded * 100) / totalBytes).toInt() else -1
-    val isRunning: Boolean get() = status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PENDING
-    val isComplete: Boolean get() = status == DownloadManager.STATUS_SUCCESSFUL
-    val isFailed: Boolean get() = status == DownloadManager.STATUS_FAILED
+    // ========================================================================
+    // Helpers
+    // ========================================================================
 
-    /** Display size: use downloaded so far for running, total for completed */
-    val displayBytes: Long get() = when {
-        isRunning && bytesDownloaded > 0 -> bytesDownloaded
-        totalBytes > 0 -> totalBytes
-        else -> bytesDownloaded
-    }
-
-    /** Human-readable size string */
-    val displaySizeLabel: String get() {
-        val bytes = displayBytes
+    private fun buildSubDir(item: MediaItem, naming: SmartNaming.NameResult? = null): String {
+        val base = if (item.mediaType == MediaType.AUDIO) "HITIF/Audio" else "HITIF/Video"
+        if (naming == null) return base
+        val seriesSub = naming.seriesName?.replace(Regex("[\\\\/:*?\"<>|]"), "_")?.take(60)
         return when {
-            bytes <= 0 -> "0 KB"
-            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-            else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+            seriesSub != null && naming.season != null ->
+                "$base/$seriesSub/Season_${naming.season.toString().padStart(2, '0')}"
+            seriesSub != null -> "$base/$seriesSub"
+            else -> base
         }
     }
 
-    /** Progress label with percentage */
-    val progressLabel: String get() = when {
-        isComplete -> "Termine"
-        isFailed -> "Echoue"
-        isRunning && percent >= 0 -> "$percent%"
-        isRunning -> "En cours..."
-        else -> ""
+    private fun buildHeaders(item: MediaItem): Map<String, String> = buildMap {
+        // 1. Set Referer
+        if (item.pageUrl.isNotBlank()) put("Referer", item.pageUrl)
+
+        // 2. Extract cookies from WebView CookieManager
+        try {
+            val cookieManager = CookieManager.getInstance()
+            val cookieUrls = mutableListOf<String>()
+
+            if (item.pageUrl.isNotBlank()) {
+                cookieUrls.add(item.pageUrl)
+            }
+
+            try {
+                val mediaHost = URL(item.url).host ?: ""
+                if (mediaHost.isNotBlank() && item.url != item.pageUrl.substringBefore('/')) {
+                    cookieUrls.add("${URL(item.url).protocol}://$mediaHost/")
+                }
+            } catch (_: Exception) {}
+
+            val cookieBuilder = StringBuilder()
+            for (cookieUrl in cookieUrls) {
+                val cookies = cookieManager.getCookie(cookieUrl)
+                if (!cookies.isNullOrBlank()) {
+                    if (cookieBuilder.isNotEmpty()) cookieBuilder.append("; ")
+                    cookieBuilder.append(cookies)
+                }
+            }
+
+            val allCookies = cookieBuilder.toString().trim()
+            if (allCookies.isNotEmpty()) {
+                put("Cookie", allCookies)
+                Log.d(TAG, "Attached ${allCookies.length} chars of cookies for: ${item.url.substringBefore('?').take(80)}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract cookies: ${e.message}")
+        }
+
+        // 3. Set User-Agent
+        put("User-Agent",
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+    }
+
+    private fun sanitizeFilename(name: String): String {
+        return name.removeSuffix(".m3u8").removeSuffix(".mpd").removeSuffix(".m3u")
+            .let { if (it.endsWith(".mp4")) it else "$it.mp4" }
+    }
+
+    /** Throttles DB writes to at most once per second */
+    private class DbThrottler(
+        private val db: AppDatabase,
+        private val url: String,
+        private val scope: CoroutineScope
+    ) {
+        @Volatile private var lastUpdate = 0L
+
+        fun update(progress: TurboProgress) {
+            val now = System.currentTimeMillis()
+            if (now - lastUpdate >= 1000L) {
+                lastUpdate = now
+                scope.launch {
+                    try {
+                        db.downloadDao().updateProgressByUrl(
+                            url = url,
+                            downloaded = progress.bytesDownloaded,
+                            total = progress.totalBytes,
+                            speed = progress.speedBps
+                        )
+                    } catch (_: Exception) {}
+                }
+            }
+        }
     }
 }

@@ -1,7 +1,6 @@
 package com.hitif.videodownloader.ui
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -30,8 +29,6 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Expand to half-screen by default
         (dialog as? com.google.android.material.bottomsheet.BottomSheetDialog)
             ?.behavior?.state = BottomSheetBehavior.STATE_HALF_EXPANDED
 
@@ -44,8 +41,7 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
         adapter = MediaAdapter(
             onDownload = ::download,
             onDelete   = { vm.removeItem(it) },
-            onShare    = ::share,
-            onRename   = ::rename
+            onShare    = ::share
         )
         b.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         b.recyclerView.adapter = adapter
@@ -54,47 +50,55 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
 
     private fun setupButtons() {
         b.btnClose.setOnClickListener { dismiss() }
+
         b.btnClearAll.setOnClickListener {
             vm.clearMedia()
-            Toast.makeText(requireContext(), "Liste videe", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Liste vidée", Toast.LENGTH_SHORT).show()
         }
+
         b.btnDownloadAll.setOnClickListener {
             val items = vm.mediaItems.value.orEmpty()
             if (items.isEmpty()) {
-                Toast.makeText(requireContext(), "Aucun media detecte", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Aucun média détecté", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             items.forEach { download(it) }
-            Toast.makeText(requireContext(), "${items.size} telechargement(s) lance(s)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "${items.size} téléchargement(s) lancé(s)", Toast.LENGTH_SHORT).show()
         }
-        // Season download button - delegate to activity
-        b.btnSeasonDownload.setOnClickListener {
-            dismiss()
-            (activity as? BrowserActivity)?.showSeasonDownloadDialog()
-        }
-        // Download history button
-        b.btnOpenHistory.setOnClickListener {
-            startActivity(Intent(requireContext(), DownloadHistoryActivity::class.java))
+
+        // Season button — opens season dialog for first detected group
+        b.btnSeason.setOnClickListener {
+            val groups = vm.seasonGroups.value ?: return@setOnClickListener
+            val firstKey = groups.keys.firstOrNull() ?: return@setOnClickListener
+            SeasonDialogFragment.newInstance(firstKey)
+                .show(parentFragmentManager, "season_dialog")
         }
     }
 
     private fun observeMedia() {
         vm.mediaItems.observe(viewLifecycleOwner) { items ->
             adapter.submitList(items.toList())
-
             val empty = items.isEmpty()
-            b.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
-            b.recyclerView.visibility = if (empty) View.GONE else View.VISIBLE
+            b.emptyState.visibility   = if (empty) View.VISIBLE else View.GONE
+            b.recyclerView.visibility = if (empty) View.GONE    else View.VISIBLE
             b.tvMediaCount.text = if (empty) "Aucun média détecté"
                                   else "${items.size} média(s) détecté(s)"
+        }
+
+        vm.seasonGroups.observe(viewLifecycleOwner) { groups ->
+            b.btnSeason.visibility = if (groups.isNotEmpty()) View.VISIBLE else View.GONE
+            if (groups.isNotEmpty()) {
+                val count = groups.values.sumOf { it.size }
+                b.btnSeason.text = "📺 ${groups.size} SAISON(S) · $count ÉP."
+            }
         }
     }
 
     private fun download(item: MediaItem) {
         try {
-            val id = DownloadHelper.enqueue(requireContext(), item)
+            DownloadHelper.enqueue(requireContext(), item)
             Toast.makeText(requireContext(),
-                "⬇ Téléchargement lancé : ${item.filename.take(32)}", Toast.LENGTH_SHORT).show()
+                "⬇ ${item.filename.take(32)}", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(requireContext(), "Erreur : ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -109,14 +113,6 @@ class MediaPanelFragment : BottomSheetDialogFragment() {
         startActivity(Intent.createChooser(intent, "Partager le lien"))
     }
 
-    private fun rename(item: MediaItem) {
-        (activity as? BrowserActivity)?.showCustomFilenameDialog(item)
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _b = null
-    }
-
+    override fun onDestroyView() { super.onDestroyView(); _b = null }
     override fun getTheme() = R.style.Theme_BottomSheet_Holo
 }

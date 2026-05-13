@@ -12,8 +12,7 @@ import com.hitif.videodownloader.model.MediaType
 class MediaAdapter(
     private val onDownload: (MediaItem) -> Unit,
     private val onDelete:   (MediaItem) -> Unit,
-    private val onShare:    (MediaItem) -> Unit,
-    private val onRename:   (MediaItem) -> Unit = {}
+    private val onShare:    (MediaItem) -> Unit
 ) : ListAdapter<MediaItem, MediaAdapter.VH>(DIFF) {
 
     inner class VH(private val b: ItemMediaBinding) : RecyclerView.ViewHolder(b.root) {
@@ -39,7 +38,6 @@ class MediaAdapter(
             b.btnDownload.setOnClickListener { onDownload(item) }
             b.btnDelete.setOnClickListener   { onDelete(item) }
             b.btnShare.setOnClickListener    { onShare(item) }
-            b.btnRename.setOnClickListener   { onRename(item) }
         }
     }
 

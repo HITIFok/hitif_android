@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bottom_sheet">
+
+    <View android:layout_width="40dp" android:layout_height="4dp"
+        android:layout_gravity="center_horizontal" android:layout_marginTop="10dp"
+        android:layout_marginBottom="6dp" android:background="@drawable/bg_drag_handle"/>
+
+    <!-- Header -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
+        android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="8dp"
+        android:gravity="center_vertical" android:background="@drawable/bg_panel_header">
+
+        <ImageView android:layout_width="20dp" android:layout_height="20dp"
+            android:src="@drawable/ic_star" android:layout_marginEnd="10dp"/>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="FAVORIS" android:textColor="@color/status_warning"
+                android:textSize="11sp" android:letterSpacing="0.12"/>
+            <TextView android:id="@+id/tvCount" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Aucun favori"
+                android:textColor="@color/text_dim" android:textSize="11sp"/>
+        </LinearLayout>
+
+        <ImageButton android:id="@+id/btnClose"
+            android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="4dp"
+            android:background="@drawable/bg_icon_btn" android:src="@drawable/ic_close"
+            android:padding="9dp" android:contentDescription="Fermer"/>
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@drawable/bg_divider_cyan"/>
+
+    <!-- Empty state -->
+    <LinearLayout android:id="@+id/emptyState"
+        android:layout_width="match_parent" android:layout_height="200dp"
+        android:orientation="vertical" android:gravity="center" android:visibility="visible">
+        <ImageView android:layout_width="52dp" android:layout_height="52dp"
+            android:src="@drawable/ic_star_outline" android:alpha="0.4"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:text="AUCUN FAVORI"
+            android:textColor="@color/status_warning" android:textSize="10sp"
+            android:letterSpacing="0.2" android:alpha="0.6"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="6dp" android:text="Appuyez sur l'etoile dans la barre d'adresse pour ajouter"
+            android:textColor="@color/text_dim" android:textSize="12sp" android:gravity="center"
+            android:paddingStart="32dp" android:paddingEnd="32dp"/>
+    </LinearLayout>
+
+    <!-- Favorites list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:clipToPadding="false" android:paddingBottom="12dp" android:visibility="gone"/>
+
+</LinearLayout>

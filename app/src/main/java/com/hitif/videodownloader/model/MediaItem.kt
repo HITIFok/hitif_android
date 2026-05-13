@@ -26,7 +26,7 @@ data class MediaItem(
 ) : Parcelable {
 
     val sizeLabel: String get() = when {
-        sizeBytes <= 0 -> "Taille inconnue"
+        sizeBytes <= 0 -> "—"
         sizeBytes < 1024 * 1024 -> "${sizeBytes / 1024} KB"
         else -> String.format("%.1f MB", sizeBytes / (1024f * 1024f))
     }
@@ -43,8 +43,8 @@ data class MediaItem(
     }
 
     val extensionLabel: String get() = when (mediaType) {
-        MediaType.HLS  -> "HLS"
-        MediaType.DASH -> "DASH"
+        MediaType.HLS  -> "MP4"
+        MediaType.DASH -> "MP4"
         else -> filename.substringAfterLast('.', "").uppercase().take(4).ifEmpty { "?" }
     }
 }

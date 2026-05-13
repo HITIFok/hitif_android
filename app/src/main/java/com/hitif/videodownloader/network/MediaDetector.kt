@@ -4,7 +4,6 @@ import android.webkit.WebResourceRequest
 import com.hitif.videodownloader.model.MediaItem
 import com.hitif.videodownloader.model.MediaType
 import com.hitif.videodownloader.model.MediaQuality
-import com.hitif.videodownloader.util.SmartNamer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,7 +32,6 @@ class MediaDetector(
     private val VIDEO_EXTENSIONS = setOf(
         "mp4", "webm", "mkv", "avi", "mov", "flv", "m4v",
         "3gp", "mts", "m2ts", "vob", "ogv"
-        // NOTE: "ts" removed — TS segments are part of HLS and should not be shown separately
     )
     private val AUDIO_EXTENSIONS = setOf(
         "mp3", "m4a", "aac", "ogg", "opus", "flac", "wav"
@@ -42,13 +40,6 @@ class MediaDetector(
         "m3u8" to MediaType.HLS,
         "m3u"  to MediaType.HLS,
         "mpd"  to MediaType.DASH
-    )
-    // Extensions to completely ignore (TS segments, subtitle files, images, etc.)
-    private val IGNORE_EXTENSIONS = setOf(
-        "ts", "m2ts", "vtt", "srt", "ass", "ssa", "ttml",
-        "jpg", "jpeg", "png", "gif", "webp", "svg", "ico",
-        "js", "css", "woff", "woff2", "ttf", "eot",
-        "xml", "json", "txt", "log"
     )
 
     private val VIDEO_MIME_PREFIXES = listOf("video/", "application/x-mpegurl",
@@ -62,8 +53,23 @@ class MediaDetector(
     private val SKIP_PATTERNS = listOf(
         Regex("manifest\\.json$"), Regex("thumbnail"), Regex("poster"),
         Regex("preview"), Regex("storyboard"), Regex("/ad/"), Regex("/ads/"),
-        Regex("beacon"), Regex("analytics"), Regex("tracking")
+        Regex("beacon"), Regex("analytics"), Regex("tracking"),
+        // HLS / DASH segment files — only the playlist is useful
+        Regex("/seg-?\\d"), Regex("/segment-?\\d"), Regex("/chunk-?\\d"),
+        Regex("/part-?\\d"), Regex("-v\\d+-a\\d+\\.ts"),
+        Regex("\\.ts\\?"), Regex("init_"), Regex("/frag-?\\d"),
+        // Key files
+        Regex("\\.key$"), Regex("/key/"),
+        // Subtitle segments
+        Regex("/subtitles/"), Regex("\\.vtt$"), Regex("\\.srt$"),
+        // HLS variant playlists — master.m3u8 is enough, skip index-v*-a*.m3u8
+        Regex("/index-v\\d+-a\\d+\\.m3u8$"),
+        Regex("/index_v\\d+_a\\d+\\.m3u8$"),
+        Regex("playlist-?\\d+\\.m3u8$", RegexOption.IGNORE_CASE)
     )
+
+    // Track which HLS/DASH base URLs we've already emitted (deduplicate per stream)
+    private val emittedStreamBases = ConcurrentHashMap<String, Boolean>()
 
     // ── Public API ───────────────────────────────────────────────────────────
 
@@ -91,6 +97,10 @@ class MediaDetector(
 
         when {
             ext in STREAM_EXTENSIONS -> {
+                // Deduplicate: only emit one m3u8/mpd per base CDN path
+                val baseUrl = url.substringBefore('?').substringBefore('#')
+                    .replace(Regex("master|index-v[0-9]+-a[0-9]+|index_v[0-9]+_a[0-9]+|playlist-?[0-9]+|index"), "*")
+                if (emittedStreamBases.putIfAbsent(baseUrl, true) != null) return
                 emit(buildItem(url, ext, STREAM_EXTENSIONS[ext]!!, headers, -1L, pageUrl, pageTitle))
             }
             ext in VIDEO_EXTENSIONS -> {
@@ -108,17 +118,16 @@ class MediaDetector(
         }
     }
 
-    fun reset() = seen.clear()
+    fun reset() {
+        seen.clear()
+        emittedStreamBases.clear()
+    }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
 
     private fun shouldSkip(cleanUrl: String): Boolean {
         BLOCKED_HOSTS.forEach { host -> if (cleanUrl.contains(host)) return true }
         SKIP_PATTERNS.forEach { re -> if (re.containsMatchIn(cleanUrl)) return true }
-        val ext = cleanUrl.substringAfterLast('.', "")
-        if (ext in IGNORE_EXTENSIONS) return true
-        // Skip TS segments (they are part of HLS streams)
-        if (cleanUrl.contains(".ts") && cleanUrl.contains("/seg") || cleanUrl.matches(Regex(".*\\d+\\.ts$"))) return true
         return false
     }
 
@@ -136,59 +145,17 @@ class MediaDetector(
         hintType: MediaType, pageUrl: String, pageTitle: String
     ) {
         try {
-            // Step 1: Try HEAD request to get Content-Type and Content-Length
-            var size = -1L
-            var mime = ""
-
-            val headReq = Request.Builder().url(url).method("HEAD", null).apply {
+            val req = Request.Builder().url(url).method("HEAD", null).apply {
                 headers.forEach { (k, v) ->
                     if (k.lowercase() !in listOf("host", "content-length")) addHeader(k, v)
                 }
                 header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
             }.build()
 
-            try {
-                val resp = http.newCall(headReq).execute()
-                mime = resp.header("Content-Type", "") ?: ""
-                size = resp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
-                resp.close()
-            } catch (_: Exception) {
-                // HEAD failed — try with GET + Range header as fallback
-            }
-
-            // Step 2: If HEAD didn't return Content-Length, try Range request
-            // Some CDNs only return Content-Length when a Range header is present
-            if (size <= 0 && mime.isNotEmpty()) {
-                try {
-                    val rangeReq = Request.Builder().url(url).apply {
-                        header("Range", "bytes=0-1")
-                        headers.forEach { (k, v) ->
-                            if (k.lowercase() !in listOf("host", "content-length", "range")) addHeader(k, v)
-                        }
-                        header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                    }.build()
-
-                    val rangeResp = http.newCall(rangeReq).execute()
-                    // Content-Range: bytes 0-1/TOTAL_SIZE
-                    val contentRange = rangeResp.header("Content-Range") ?: ""
-                    if (contentRange.contains('/')) {
-                        val totalStr = contentRange.substringAfterLast('/').trim()
-                        size = totalStr.toLongOrNull() ?: -1L
-                    }
-                    // Also try Content-Length as fallback (some servers return total here)
-                    if (size <= 0) {
-                        val cl = (rangeResp.header("Content-Length") ?: "-1").toLongOrNull() ?: -1L
-                        // Content-Length in a 206 response is the chunk size, not total
-                        // But if status is 200, it's the total
-                        if (rangeResp.code == 200 && cl > 2) size = cl
-                    }
-                    // Use mime from range request if HEAD didn't get it
-                    if (mime.isBlank()) mime = rangeResp.header("Content-Type", "") ?: ""
-                    rangeResp.close()
-                } catch (_: Exception) {
-                    // Range request also failed — continue with unknown size
-                }
-            }
+            val resp = http.newCall(req).execute()
+            val mime = resp.header("Content-Type", "") ?: ""
+            val size = resp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
+            resp.close()
 
             val resolvedType = when {
                 VIDEO_MIME_PREFIXES.any { mime.startsWith(it) } -> {
@@ -215,33 +182,31 @@ class MediaDetector(
         headers: Map<String, String>, size: Long,
         pageUrl: String, pageTitle: String
     ): MediaItem {
-        // Smart naming: try to generate a clean name from the page URL
-        val smartName = if (pageUrl.isNotBlank()) {
-            SmartNamer.smartNameForPage(pageUrl, pageTitle)
-        } else {
-            ""
-        }
-        val rawName = url.substringBefore('?').substringAfterLast('/')
-
-        // Determine the best extension — always prefer .mp4 for video content
-        val finalExt = when (type) {
-            MediaType.HLS, MediaType.DASH -> "mp4"  // HLS/DASH streams saved as MP4
-            MediaType.VIDEO -> "mp4"               // Video files saved as MP4
-            MediaType.AUDIO -> "mp3"                // Audio files saved as MP3
-            MediaType.UNKNOWN -> {
-                val ext = if (extOrMime.contains('/')) extOrMime.substringAfter('/') else extOrMime
-                ext.take(4).ifBlank { "mp4" }
-            }
-        }
-
-        val safeName = if (smartName.isNotBlank() && smartName.length > 3) {
-            "$smartName.$finalExt"
-        } else {
-            rawName.ifBlank { "media_${System.currentTimeMillis()}" }
-                .let { if (!it.contains('.')) "$it.$finalExt" else "${it.substringBeforeLast('.')}.$finalExt" }
-        }
-
         val quality = guessQuality(url, headers)
+
+        // For HLS/DASH streams: use page title as filename instead of raw m3u8/mpd name
+        val safeName = if (type == MediaType.HLS || type == MediaType.DASH) {
+            val cleanTitle = pageTitle
+                .replace(Regex("[\\/:*?\"<>|]+"), " ")
+                .replace(Regex("\\s+"), "_")
+                .replace(Regex("-{2,}"), "-")
+                .trim('_', '-', ' ')
+            if (cleanTitle.length >= 3) {
+                val qualitySuffix = when (quality) {
+                    com.hitif.videodownloader.model.MediaQuality.ULTRA -> "_4K"
+                    com.hitif.videodownloader.model.MediaQuality.HIGH -> "_1080p"
+                    com.hitif.videodownloader.model.MediaQuality.MEDIUM -> "_720p"
+                    else -> ""
+                }
+                "${cleanTitle.take(80)}${qualitySuffix}.mp4"
+            } else {
+                "hitif_${System.currentTimeMillis() / 1000}.mp4"
+            }
+        } else {
+            val rawName = url.substringBefore('?').substringAfterLast('/')
+            rawName.ifBlank { "media_${System.currentTimeMillis()}" }
+                .let { if (!it.contains('.')) "$it.${extOrMime.take(4)}" else it }
+        }
 
         return MediaItem(
             url        = url,
