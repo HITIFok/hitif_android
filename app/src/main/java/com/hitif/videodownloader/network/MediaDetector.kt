@@ -153,9 +153,44 @@ class MediaDetector(
             }.build()
 
             val resp = http.newCall(req).execute()
-            val mime = resp.header("Content-Type", "") ?: ""
-            val size = resp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
+            val mime = resp.header("Content-Type") ?: ""
+            var size = resp.header("Content-Length")?.toLongOrNull() ?: -1L
             resp.close()
+
+            // Fallback: if HEAD did not return Content-Length, try a Range request
+            // to probe the total file size from the Content-Range header
+            if (size <= 0L) {
+                try {
+                    val rangeReq = Request.Builder().url(url).method("HEAD", null).apply {
+                        headers.forEach { (k, v) ->
+                            if (k.lowercase() !in listOf("host", "content-length")) addHeader(k, v)
+                        }
+                        header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                        header("Range", "bytes=0-1")
+                    }.build()
+
+                    val rangeResp = http.newCall(rangeReq).execute()
+                    val contentRange = rangeResp.header("Content-Range") ?: ""
+                    val rangeTotal = rangeResp.header("Content-Length")?.toLongOrNull() ?: -1L
+                    rangeResp.close()
+
+                    // Content-Range format: "bytes 0-1/TOTAL" → extract TOTAL
+                    if (contentRange.contains("/")) {
+                        val totalStr = contentRange.substringAfterLast("/").trim()
+                        val parsed = totalStr.toLongOrNull()
+                        if (parsed != null && parsed > 0L) {
+                            size = parsed
+                        }
+                    }
+                    // If Content-Length from Range response is larger (server sends remaining bytes),
+                    // try to use Accept-Ranges to infer total
+                    if (size <= 0L && rangeTotal > 0L) {
+                        size = rangeTotal  // best-effort: at least use what we got
+                    }
+                } catch (_: Exception) {
+                    // Range probe failed — continue with unknown size
+                }
+            }
 
             val resolvedType = when {
                 VIDEO_MIME_PREFIXES.any { mime.startsWith(it) } -> {

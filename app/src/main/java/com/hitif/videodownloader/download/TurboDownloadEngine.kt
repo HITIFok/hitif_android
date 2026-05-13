@@ -42,6 +42,8 @@ object TurboDownloadEngine {
     private const val CHUNK_COUNT = 4
     private const val MULTI_CHUNK_THRESHOLD = 2L * 1024 * 1024   // 2 MB
     private const val SPEED_SAMPLE_INTERVAL_MS = 500L
+    private const val CHUNK_RETRY_COUNT = 3          // retries per chunk before giving up
+    private const val CHUNK_RETRY_BASE_DELAY_MS = 1500L   // base delay between retries
 
     // ---------- OkHttpClient with optimised settings ----------
     private val httpClient: OkHttpClient by lazy {
@@ -215,79 +217,93 @@ object TurboDownloadEngine {
         atomics: DownloadAtomics?,
         callback: TurboCallback
     ) {
-        try {
-            withContext(Dispatchers.IO) {
-                val request = Request.Builder()
-                    .url(url)
-                    .get()
-                    .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-                    .build()
+        var lastError: Throwable? = null
 
-                httpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        throw IllegalStateException("Download failed: ${response.code} ${response.message}")
-                    }
+        for (attempt in 0 until CHUNK_RETRY_COUNT) {
+            try {
+                if (attempt > 0) {
+                    val delayMs = CHUNK_RETRY_BASE_DELAY_MS * (1L shl (attempt - 1))
+                    Log.w(TAG, "singleChunkDownload attempt $attempt failed, retrying in ${delayMs}ms...")
+                    delay(delayMs)
+                }
 
-                    val body = response.body
-                        ?: throw IllegalStateException("Response body is null")
+                withContext(Dispatchers.IO) {
+                    val request = Request.Builder()
+                        .url(url)
+                        .get()
+                        .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                        .build()
 
-                    val totalBytes = body.contentLength()
-                    val destFile = File(destPath)
-                    destFile.parentFile?.mkdirs()
+                    httpClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            throw IllegalStateException("Download failed: ${response.code} ${response.message}")
+                        }
 
-                    var downloaded = 0L
-                    val prevRef = AtomicLong(0L)
-                    var lastSpeedTime = System.currentTimeMillis()
+                        val body = response.body
+                            ?: throw IllegalStateException("Response body is null")
 
-                    body.byteStream().use { input ->
-                        FileOutputStream(destFile).use { output ->
-                            val buffer = ByteArray(8192)
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read == -1) break
-                                ensureActive()
-                                output.write(buffer, 0, read)
-                                downloaded += read
-                                atomics?.totalDownloaded?.addAndGet(read.toLong())
+                        val totalBytes = body.contentLength()
+                        val destFile = File(destPath)
+                        destFile.parentFile?.mkdirs()
 
-                                val now = System.currentTimeMillis()
-                                if (now - lastSpeedTime >= SPEED_SAMPLE_INTERVAL_MS) {
-                                    val delta = downloaded - prevRef.getAndSet(downloaded)
-                                    val elapsed = (now - lastSpeedTime) / 1000.0
-                                    val speed = if (elapsed > 0) (delta / elapsed).toLong() else 0L
-                                    val percent = if (totalBytes > 0) ((downloaded * 100) / totalBytes).toInt() else 0
+                        var downloaded = 0L
+                        val prevRef = AtomicLong(0L)
+                        var lastSpeedTime = System.currentTimeMillis()
 
-                                    try {
-                                        callback.onProgress(
-                                            TurboProgress(
-                                                bytesDownloaded = downloaded,
-                                                totalBytes = totalBytes,
-                                                speedBps = speed,
-                                                percent = percent,
-                                                isActive = true
+                        body.byteStream().use { input ->
+                            FileOutputStream(destFile).use { output ->
+                                val buffer = ByteArray(8192)
+                                while (true) {
+                                    val read = input.read(buffer)
+                                    if (read == -1) break
+                                    ensureActive()
+                                    output.write(buffer, 0, read)
+                                    downloaded += read
+                                    atomics?.totalDownloaded?.addAndGet(read.toLong())
+
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastSpeedTime >= SPEED_SAMPLE_INTERVAL_MS) {
+                                        val delta = downloaded - prevRef.getAndSet(downloaded)
+                                        val elapsed = (now - lastSpeedTime) / 1000.0
+                                        val speed = if (elapsed > 0) (delta / elapsed).toLong() else 0L
+                                        val percent = if (totalBytes > 0) ((downloaded * 100) / totalBytes).toInt() else 0
+
+                                        try {
+                                            callback.onProgress(
+                                                TurboProgress(
+                                                    bytesDownloaded = downloaded,
+                                                    totalBytes = totalBytes,
+                                                    speedBps = speed,
+                                                    percent = percent,
+                                                    isActive = true
+                                                )
                                             )
-                                        )
-                                    } catch (_: Exception) {}
-                                    lastSpeedTime = now
+                                        } catch (_: Exception) {}
+                                        lastSpeedTime = now
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    try {
-                        callback.onProgress(
-                            TurboProgress(downloaded, totalBytes, 0L, 100, false)
-                        )
-                        callback.onComplete(destFile)
-                    } catch (_: Exception) {}
+                        try {
+                            callback.onProgress(
+                                TurboProgress(downloaded, totalBytes, 0L, 100, false)
+                            )
+                            callback.onComplete(destFile)
+                        } catch (_: Exception) {}
+                    }
                 }
+                return  // success
+            } catch (e: CancellationException) {
+                throw e  // don't retry on cancellation
+            } catch (e: Throwable) {
+                lastError = e
+                Log.w(TAG, "singleChunkDownload attempt ${attempt + 1}/$CHUNK_RETRY_COUNT failed: ${e.message}")
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            Log.e(TAG, "singleChunkDownload error: ${e.message}", e)
-            try { callback.onError(e) } catch (_: Exception) {}
         }
+        // All retries exhausted
+        Log.e(TAG, "singleChunkDownload all $CHUNK_RETRY_COUNT retries failed")
+        try { callback.onError(lastError ?: IllegalStateException("Download failed after retries")) } catch (_: Exception) {}
     }
 
     // -----------------------------------------------------------------------
@@ -374,10 +390,10 @@ object TurboDownloadEngine {
     }
 
     // -----------------------------------------------------------------------
-    // Download a single byte‑range chunk — crash-safe
+    // Download a single byte‑range chunk — crash-safe with retry logic
     // -----------------------------------------------------------------------
 
-    private fun downloadChunk(
+    private suspend fun downloadChunk(
         url: String,
         headers: Map<String, String>,
         startByte: Long,
@@ -385,41 +401,62 @@ object TurboDownloadEngine {
         tempFile: File,
         atomics: DownloadAtomics
     ) {
-        try {
-            val request = Request.Builder()
-                .url(url)
-                .get()
-                .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-                .addHeader("Range", "bytes=$startByte-$endByte")
-                .build()
+        var lastError: Exception? = null
 
-            httpClient.newCall(request).execute().use { response ->
-                if (response.code != 206 && response.code != 200) {
-                    throw IllegalStateException(
-                        "Chunk download failed for range $startByte-$endByte: ${response.code} ${response.message}"
-                    )
+        for (attempt in 0 until CHUNK_RETRY_COUNT) {
+            try {
+                // If retrying, delete the partial temp file and start fresh
+                if (attempt > 0 && tempFile.exists()) {
+                    tempFile.delete()
+                    val delayMs = CHUNK_RETRY_BASE_DELAY_MS * (1L shl (attempt - 1))
+                    Log.w(TAG, "Chunk $startByte-$endByte failed (attempt $attempt), retrying in ${delayMs}ms...")
+                    delay(delayMs)
                 }
 
-                val body = response.body
-                    ?: throw IllegalStateException("Chunk response body is null for range $startByte-$endByte")
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                    .addHeader("Range", "bytes=$startByte-$endByte")
+                    .build()
 
-                body.byteStream().use { input ->
-                    tempFile.parentFile?.mkdirs()
-                    FileOutputStream(tempFile).use { output ->
-                        val buffer = ByteArray(8192)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read == -1) break
-                            output.write(buffer, 0, read)
-                            atomics.totalDownloaded.addAndGet(read.toLong())
+                withContext(Dispatchers.IO) {
+                    httpClient.newCall(request).execute().use { response ->
+                        if (response.code != 206 && response.code != 200) {
+                            throw IllegalStateException(
+                                "Chunk download failed for range $startByte-$endByte: ${response.code} ${response.message}"
+                            )
+                        }
+
+                        val body = response.body
+                            ?: throw IllegalStateException("Chunk response body is null for range $startByte-$endByte")
+
+                        body.byteStream().use { input ->
+                            tempFile.parentFile?.mkdirs()
+                            FileOutputStream(tempFile).use { output ->
+                                val buffer = ByteArray(8192)
+                                while (true) {
+                                    val read = input.read(buffer)
+                                    if (read == -1) break
+                                    output.write(buffer, 0, read)
+                                    atomics.totalDownloaded.addAndGet(read.toLong())
+                                }
+                            }
                         }
                     }
                 }
+                // Success — return
+                return
+            } catch (e: CancellationException) {
+                throw e  // don't retry on cancellation
+            } catch (e: Exception) {
+                lastError = e
+                Log.w(TAG, "downloadChunk attempt ${attempt + 1}/$CHUNK_RETRY_COUNT failed for range $startByte-$endByte: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "downloadChunk error range $startByte-$endByte: ${e.message}")
-            throw e
         }
+        // All retries exhausted
+        Log.e(TAG, "downloadChunk all $CHUNK_RETRY_COUNT retries failed for range $startByte-$endByte")
+        throw lastError ?: IllegalStateException("Chunk download failed after $CHUNK_RETRY_COUNT retries")
     }
 
     // -----------------------------------------------------------------------

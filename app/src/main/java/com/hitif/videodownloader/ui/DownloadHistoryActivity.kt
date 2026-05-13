@@ -1,13 +1,10 @@
 package com.hitif.videodownloader.ui
 
-import android.app.DownloadManager
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
-import android.database.ContentObserver
-import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
@@ -19,60 +16,62 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.hitif.videodownloader.R
+import com.hitif.videodownloader.db.AppDatabase
 import com.hitif.videodownloader.download.DownloadHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class DownloadRecord(
+/**
+ * UI-layer download record for the history list.
+ * Maps from Room entity (com.hitif.videodownloader.db.DownloadRecord).
+ */
+data class UiDownloadRecord(
     val id: Long,
     val title: String,
-    val status: Int,
+    val state: String,          // "DOWNLOADING", "COMPLETED", "FAILED", "QUEUED", "PAUSED"
     val sizeBytes: Long,
-    val bytesDownloaded: Long,
+    val progressBytes: Long,
     val totalBytes: Long,
+    val speedBps: Long,
     val dateMs: Long,
-    val uri: Uri,
+    val url: String,
     val mediaType: String
 ) {
-    /** Display size: downloaded so far for running, total for others */
     val displayBytes: Long get() = when {
-        status == DownloadManager.STATUS_RUNNING && bytesDownloaded > 0 -> bytesDownloaded
-        status == DownloadManager.STATUS_PENDING && bytesDownloaded > 0 -> bytesDownloaded
+        state == "DOWNLOADING" && progressBytes > 0 -> progressBytes
         sizeBytes > 0 -> sizeBytes
-        else -> bytesDownloaded
+        progressBytes > 0 -> progressBytes
+        else -> 0L
     }
 
-    /** Progress percentage, -1 if unknown */
     val percent: Int get() = when {
-        totalBytes > 0 -> ((bytesDownloaded * 100) / totalBytes).toInt()
+        totalBytes > 0 -> ((progressBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
+        sizeBytes > 0 && progressBytes > 0 -> ((progressBytes * 100) / sizeBytes).toInt().coerceIn(0, 100)
         else -> -1
     }
 
-    /** Human-readable display size */
     val displaySizeLabel: String
         get() {
             val bytes = displayBytes
             return when {
                 bytes <= 0 -> "0 KB"
                 bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-                else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+                bytes < 1024L * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+                else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
             }
         }
 
-    /** Progress label with percentage for running downloads */
-    val progressLabel: String
-        get() = when (status) {
-            DownloadManager.STATUS_RUNNING -> if (percent >= 0) "$percent%" else "En cours..."
-            DownloadManager.STATUS_PENDING -> "En attente"
-            DownloadManager.STATUS_PAUSED -> "En pause"
-            DownloadManager.STATUS_FAILED -> "Echoue"
-            DownloadManager.STATUS_SUCCESSFUL -> "Termine"
-            else -> ""
-        }
+    val isActive: Boolean get() = state == "DOWNLOADING" || state == "QUEUED"
+    val isCompleted: Boolean get() = state == "COMPLETED"
+    val isFailed: Boolean get() = state == "FAILED"
 }
 
 class DownloadHistoryActivity : AppCompatActivity() {
@@ -87,7 +86,6 @@ class DownloadHistoryActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var progressRunnable: Runnable? = null
-    private var downloadObserver: ContentObserver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,7 +120,6 @@ class DownloadHistoryActivity : AppCompatActivity() {
         }
 
         loadDownloads()
-        registerDownloadObserver()
     }
 
     override fun onResume() {
@@ -136,34 +133,7 @@ class DownloadHistoryActivity : AppCompatActivity() {
         stopProgressPolling()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        stopProgressPolling()
-        unregisterDownloadObserver()
-    }
-
-    // ── ContentObserver for real-time updates ───────────────────────────
-
-    private fun registerDownloadObserver() {
-        downloadObserver = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean) {
-                runOnUiThread { loadDownloads() }
-            }
-        }
-        contentResolver.registerContentObserver(
-            Uri.parse("content://downloads/my_downloads"),
-            true,
-            downloadObserver!!
-        )
-    }
-
-    private fun unregisterDownloadObserver() {
-        downloadObserver?.let {
-            try { contentResolver.unregisterContentObserver(it) } catch (_: Exception) {}
-        }
-    }
-
-    // ── Progress polling for running downloads ──────────────────────────
+    // ── Progress polling for active downloads ──────────────────────────
 
     private fun startProgressPolling() {
         stopProgressPolling()
@@ -172,7 +142,7 @@ class DownloadHistoryActivity : AppCompatActivity() {
                 if (adapter.hasActiveDownloads()) {
                     loadDownloads()
                 }
-                handler.postDelayed(this, 1500) // refresh every 1.5s
+                handler.postDelayed(this, 1500)
             }
         }
         handler.post(progressRunnable!!)
@@ -186,24 +156,53 @@ class DownloadHistoryActivity : AppCompatActivity() {
     // ── Data loading ────────────────────────────────────────────────────
 
     private fun loadDownloads() {
-        val records = queryDownloads()
-        adapter.submitList(records)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
+            val roomRecords = db.downloadDao().getRecent(200)
 
-        if (records.isEmpty()) {
-            emptyState.visibility = View.VISIBLE
-            recyclerView.visibility = View.GONE
-        } else {
-            emptyState.visibility = View.GONE
-            recyclerView.visibility = View.VISIBLE
+            val uiRecords = roomRecords.map { r ->
+                UiDownloadRecord(
+                    id = r.id,
+                    title = r.filename.ifBlank { r.pageTitle.ifBlank { "Fichier inconnu" } },
+                    state = r.state,
+                    sizeBytes = r.sizeBytes,
+                    progressBytes = r.progressBytes,
+                    totalBytes = r.totalBytes,
+                    speedBps = r.speedBps,
+                    dateMs = r.completedAt ?: r.startedAt,
+                    url = r.url,
+                    mediaType = r.mediaType
+                )
+            }
+
+            // Sort: active first (DOWNLOADING > QUEUED > COMPLETED > FAILED)
+            val sorted = uiRecords.sortedWith(compareByDescending<UiDownloadRecord> {
+                when (it.state) {
+                    "DOWNLOADING" -> 5
+                    "QUEUED" -> 4
+                    "COMPLETED" -> 2
+                    else -> 1
+                }
+            }.thenByDescending { it.dateMs })
+
+            runOnUiThread {
+                adapter.submitList(sorted)
+
+                if (sorted.isEmpty()) {
+                    emptyState.visibility = View.VISIBLE
+                    recyclerView.visibility = View.GONE
+                } else {
+                    emptyState.visibility = View.GONE
+                    recyclerView.visibility = View.VISIBLE
+                }
+
+                tvCount.text = "${sorted.size} fichier(s)"
+                val totalMB = sorted.sumOf { it.displayBytes } / (1024.0 * 1024.0)
+                tvTotalSize.text = if (totalMB >= 1024) String.format("%.1f GB", totalMB / 1024) else String.format("%.1f MB", totalMB)
+
+                updateStorageInfo()
+            }
         }
-
-        // Count and total size
-        tvCount.text = "${records.size} fichier(s)"
-        val totalMB = records.sumOf { it.displayBytes } / (1024.0 * 1024.0)
-        tvTotalSize.text = if (totalMB >= 1024) String.format("%.1f GB", totalMB / 1024) else String.format("%.1f MB", totalMB)
-
-        // Storage info
-        updateStorageInfo()
     }
 
     private fun updateStorageInfo() {
@@ -225,10 +224,8 @@ class DownloadHistoryActivity : AppCompatActivity() {
         val usedPercent = ((totalMB - availableMB) * 100 / totalMB).toInt().coerceIn(0, 100)
         tvStorage.text = "$availStr libres / $totalStr ($usedPercent% utilise)"
 
-        // Update storage bar
         storageBar.progress = usedPercent
 
-        // Color coding: red if critically low, yellow if moderate, green if OK
         val color = when {
             availableMB < 100 -> 0xFFFF4444.toInt()   // < 100 MB: red
             availableMB < 500 -> 0xFFFFAA00.toInt()   // < 500 MB: yellow
@@ -238,78 +235,35 @@ class DownloadHistoryActivity : AppCompatActivity() {
         storageBar.progressTintList = android.content.res.ColorStateList.valueOf(color)
     }
 
-    private fun queryDownloads(): List<DownloadRecord> {
-        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val records = mutableListOf<DownloadRecord>()
-
-        // Include ALL statuses so we can show failed downloads too
-        val query = DownloadManager.Query()
-            .setFilterByStatus(
-                DownloadManager.STATUS_SUCCESSFUL or
-                DownloadManager.STATUS_RUNNING or
-                DownloadManager.STATUS_PENDING or
-                DownloadManager.STATUS_PAUSED or
-                DownloadManager.STATUS_FAILED
-            )
-
-        val cursor: Cursor? = dm.query(query)
-
-        cursor?.use { c ->
-            val colId = c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
-            val colTitle = c.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE)
-            val colStatus = c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)
-            val colSize = c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
-            val colDownloaded = c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-            val colDate = c.getColumnIndexOrThrow(DownloadManager.COLUMN_LAST_MODIFIED_TIMESTAMP)
-            val colUri = c.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)
-            val colMedia = c.getColumnIndexOrThrow(DownloadManager.COLUMN_MEDIA_TYPE)
-
-            while (c.moveToNext()) {
-                val id = c.getLong(colId)
-                val title = c.getString(colTitle) ?: "Fichier inconnu"
-                val status = c.getInt(colStatus)
-                val size = c.getLong(colSize)
-                val downloaded = c.getLong(colDownloaded)
-                val date = c.getLong(colDate)
-                val uriStr = c.getString(colUri)
-                val mediaType = c.getString(colMedia) ?: ""
-
-                if (uriStr != null) {
-                    val uri = Uri.parse(uriStr)
-                    records.add(DownloadRecord(
-                        id, title, status, size, downloaded, totalBytes = size,
-                        dateMs = date, uri, mediaType
-                    ))
-                }
-            }
-        }
-
-        // Sort: running first, then pending, then paused, then success, then failed
-        return records.sortedWith(compareByDescending<DownloadRecord> {
-            when (it.status) {
-                DownloadManager.STATUS_RUNNING -> 5
-                DownloadManager.STATUS_PENDING -> 4
-                DownloadManager.STATUS_PAUSED -> 3
-                DownloadManager.STATUS_SUCCESSFUL -> 2
-                DownloadManager.STATUS_FAILED -> 1
-                else -> 0
-            }
-        }.thenByDescending { it.dateMs })
-    }
-
     // ── Actions ────────────────────────────────────────────────────────
 
-    private fun openFile(record: DownloadRecord) {
-        if (record.status != DownloadManager.STATUS_SUCCESSFUL) {
+    private fun openFile(record: UiDownloadRecord) {
+        if (!record.isCompleted) {
             Toast.makeText(this, "Ce fichier n'est pas encore telecharge", Toast.LENGTH_SHORT).show()
             return
         }
         try {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(record.uri, record.mediaType.ifBlank { "video/*" })
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Try to find the file in the downloads directory
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val hitifDir = File(downloadsDir, "HITIF")
+            val file = findFile(hitifDir, record.title)
+
+            if (file != null && file.exists()) {
+                val uri = Uri.fromFile(file)
+                val mimeType = when {
+                    record.mediaType.contains("audio") -> "audio/*"
+                    record.mediaType.contains("video") || record.title.endsWith(".mp4") ||
+                    record.title.endsWith(".mkv") || record.title.endsWith(".webm") -> "video/*"
+                    else -> "*/*"
+                }
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "Fichier introuvable sur l'appareil", Toast.LENGTH_SHORT).show()
             }
-            startActivity(intent)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, "Aucune application pour ouvrir ce fichier", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -317,28 +271,49 @@ class DownloadHistoryActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmDelete(record: DownloadRecord) {
+    private fun findFile(dir: File, filename: String): File? {
+        if (!dir.exists() || !dir.isDirectory) return null
+        // Direct match
+        val direct = File(dir, filename)
+        if (direct.exists()) return direct
+        // Recursive search (limited depth)
+        dir.listFiles()?.forEach { child ->
+            if (child.isDirectory) {
+                val found = findFile(child, filename)
+                if (found != null) return found
+            } else if (child.name.equals(filename, ignoreCase = true)) {
+                return child
+            }
+        }
+        return null
+    }
+
+    private fun confirmDelete(record: UiDownloadRecord) {
         AlertDialog.Builder(this)
             .setTitle("Supprimer")
-            .setMessage("Supprimer '${record.title}' ?")
+            .setMessage("Supprimer '${record.title}' de l'historique ?")
             .setPositiveButton("Supprimer") { _, _ ->
-                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                dm.remove(record.id)
-                loadDownloads()
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
+                    db.downloadDao().deleteById(record.id)
+                    loadDownloads()
+                }
                 Toast.makeText(this, "Supprime", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Annuler", null)
             .show()
     }
 
-    private fun retryDownload(record: DownloadRecord) {
-        if (record.status != DownloadManager.STATUS_FAILED) return
+    private fun retryDownload(record: UiDownloadRecord) {
+        if (!record.isFailed) return
         AlertDialog.Builder(this)
             .setTitle("Reessayer")
             .setMessage("Reessayer le telechargement de '${record.title}' ?")
             .setPositiveButton("Reessayer") { _, _ ->
-                val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                dm.remove(record.id)
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
+                    db.downloadDao().deleteById(record.id)
+                }
                 Toast.makeText(this, "Supprime de l'historique. Re-telechargez depuis la page.", Toast.LENGTH_LONG).show()
                 loadDownloads()
             }
@@ -347,42 +322,32 @@ class DownloadHistoryActivity : AppCompatActivity() {
     }
 
     private fun clearAllDownloads() {
-        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val query = DownloadManager.Query()
-        val cursor: Cursor? = dm.query(query)
-        cursor?.use { c ->
-            val colId = c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
-            while (c.moveToNext()) {
-                dm.remove(c.getLong(colId))
-            }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
+            db.downloadDao().deleteAll()
+            loadDownloads()
         }
-        loadDownloads()
         Toast.makeText(this, "Historique vide", Toast.LENGTH_SHORT).show()
     }
 
     // ── Adapter ────────────────────────────────────────────────────────
 
     class DownloadsAdapter(
-        private val onOpen: (DownloadRecord) -> Unit,
-        private val onDelete: (DownloadRecord) -> Unit,
-        private val onRetry: (DownloadRecord) -> Unit
+        private val onOpen: (UiDownloadRecord) -> Unit,
+        private val onDelete: (UiDownloadRecord) -> Unit,
+        private val onRetry: (UiDownloadRecord) -> Unit
     ) : RecyclerView.Adapter<DownloadsAdapter.VH>() {
 
-        private val items = mutableListOf<DownloadRecord>()
+        private val items = mutableListOf<UiDownloadRecord>()
         private val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
 
-        fun submitList(list: List<DownloadRecord>) {
+        fun submitList(list: List<UiDownloadRecord>) {
             items.clear()
             items.addAll(list)
             notifyDataSetChanged()
         }
 
-        fun hasActiveDownloads(): Boolean {
-            return items.any {
-                it.status == DownloadManager.STATUS_RUNNING ||
-                it.status == DownloadManager.STATUS_PENDING
-            }
-        }
+        fun hasActiveDownloads(): Boolean = items.any { it.isActive }
 
         override fun getItemCount() = items.size
 
@@ -406,68 +371,74 @@ class DownloadHistoryActivity : AppCompatActivity() {
             private val btnDelete = view.findViewById<ImageView>(R.id.btnDeleteFile)
             private val progressBar = view.findViewById<ProgressBar>(R.id.progressBar)
 
-            fun bind(record: DownloadRecord) {
+            fun bind(record: UiDownloadRecord) {
                 tvFileName.text = record.title
 
-                // File size — show downloaded so far for active downloads
+                // File size
                 tvFileSize.text = when {
-                    record.status == DownloadManager.STATUS_RUNNING && record.percent >= 0 ->
-                        "${record.displaySizeLabel} / ${formatSize(record.totalBytes)}"
+                    record.isActive && record.percent >= 0 ->
+                        "${record.displaySizeLabel} / ${formatSize(record.totalBytes.coerceAtLeast(record.sizeBytes))}"
                     record.displayBytes <= 0 -> "---"
                     else -> record.displaySizeLabel
                 }
 
                 // Status icon and label
-                when (record.status) {
-                    DownloadManager.STATUS_RUNNING -> {
+                when (record.state) {
+                    "DOWNLOADING" -> {
                         tvStatus.text = if (record.percent >= 0) "${record.percent}%" else "En cours..."
                         tvStatus.setTextColor(0xFF00E5FF.toInt())
                         progressBar.visibility = View.VISIBLE
                         ivStatus.setImageResource(R.drawable.ic_download)
                         ivStatus.alpha = 1f
                     }
-                    DownloadManager.STATUS_PENDING -> {
+                    "QUEUED" -> {
                         tvStatus.text = "En attente"
                         tvStatus.setTextColor(0xFFFFAA00.toInt())
                         progressBar.visibility = View.GONE
                         ivStatus.setImageResource(R.drawable.ic_download)
                         ivStatus.alpha = 0.5f
                     }
-                    DownloadManager.STATUS_PAUSED -> {
+                    "PAUSED" -> {
                         tvStatus.text = "En pause"
                         tvStatus.setTextColor(0xFFFFAA00.toInt())
                         progressBar.visibility = View.GONE
                         ivStatus.setImageResource(R.drawable.ic_download)
                         ivStatus.alpha = 0.5f
                     }
-                    DownloadManager.STATUS_FAILED -> {
+                    "FAILED" -> {
                         tvStatus.text = "Echoue"
                         tvStatus.setTextColor(0xFFFF4444.toInt())
                         progressBar.visibility = View.GONE
                         ivStatus.setImageResource(android.R.drawable.ic_dialog_alert)
                         ivStatus.alpha = 1f
                     }
-                    else -> {
-                        // STATUS_SUCCESSFUL or unknown
+                    "COMPLETED" -> {
                         tvStatus.text = "Termine"
                         tvStatus.setTextColor(0xFF00E887.toInt())
                         progressBar.visibility = View.GONE
                         ivStatus.setImageResource(android.R.drawable.stat_sys_download_done)
                         ivStatus.alpha = 1f
                     }
+                    else -> {
+                        tvStatus.text = record.state
+                        tvStatus.setTextColor(0xFF506070.toInt())
+                        progressBar.visibility = View.GONE
+                        ivStatus.setImageResource(R.drawable.ic_download)
+                        ivStatus.alpha = 0.3f
+                    }
                 }
 
-                // Update progress bar for running downloads
-                if (record.status == DownloadManager.STATUS_RUNNING && record.percent >= 0) {
+                // Progress bar for active downloads
+                if (record.isActive && record.percent >= 0) {
                     progressBar.progress = record.percent
                     progressBar.isIndeterminate = false
+                } else {
+                    progressBar.visibility = View.GONE
                 }
 
-                // Date
                 tvDate.text = dateFormat.format(Date(record.dateMs))
 
-                // Open button: only enabled for completed downloads
-                btnOpen.isEnabled = record.status == DownloadManager.STATUS_SUCCESSFUL
+                btnOpen.isEnabled = record.isCompleted
                 btnOpen.alpha = if (btnOpen.isEnabled) 1f else 0.35f
                 btnOpen.setOnClickListener { onOpen(record) }
                 btnDelete.setOnClickListener { onDelete(record) }
@@ -478,7 +449,8 @@ class DownloadHistoryActivity : AppCompatActivity() {
             return when {
                 bytes <= 0 -> "?"
                 bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-                else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+                bytes < 1024L * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+                else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.hitif.videodownloader.download
 
 import android.os.Environment
+import android.os.StatFs
 import android.util.Log
 import android.webkit.CookieManager
 import com.hitif.videodownloader.db.AppDatabase
@@ -310,6 +311,34 @@ object DownloadHelper {
     private fun sanitizeFilename(name: String): String {
         return name.removeSuffix(".m3u8").removeSuffix(".mpd").removeSuffix(".m3u")
             .let { if (it.endsWith(".mp4")) it else "$it.mp4" }
+    }
+
+    // ========================================================================
+    // Storage monitoring
+    // ========================================================================
+
+    /** Available storage in MB (external/storage downloads) */
+    fun getAvailableStorageMB(context: android.content.Context): Long {
+        return try {
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val stat = StatFs(dir.absolutePath)
+            stat.availableBytes / (1024.0 * 1024.0).toLong()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get available storage: ${e.message}")
+            -1L
+        }
+    }
+
+    /** Total storage in MB (external/storage downloads) */
+    fun getTotalStorageMB(context: android.content.Context): Long {
+        return try {
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val stat = StatFs(dir.absolutePath)
+            stat.totalBytes / (1024.0 * 1024.0).toLong()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get total storage: ${e.message}")
+            -1L
+        }
     }
 
     /** Throttles DB writes to at most once per second */
