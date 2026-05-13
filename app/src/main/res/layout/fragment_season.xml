@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@drawable/bg_bottom_sheet">
+    android:background="@drawable/bg_glass_bottom_sheet">
 
     <View android:layout_width="40dp" android:layout_height="4dp"
         android:layout_gravity="center_horizontal" android:layout_marginTop="10dp"
@@ -13,7 +13,7 @@
     <!-- Header -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="60dp"
         android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="8dp"
-        android:gravity="center_vertical" android:background="@drawable/bg_panel_header">
+        android:gravity="center_vertical" android:background="@drawable/bg_glass_panel_header">
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
             android:layout_weight="1" android:orientation="vertical">
@@ -21,12 +21,14 @@
             <TextView android:id="@+id/tvSeriesName"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="SÉRIE" android:textColor="@color/accent_cyan"
-                android:textSize="13sp" android:letterSpacing="0.1"/>
+                android:textSize="13sp" android:letterSpacing="0.1"
+                android:fontFamily="@font/orbitron"/>
 
             <TextView android:id="@+id/tvSeasonLabel"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="SAISON" android:textColor="@color/text_dim"
-                android:textSize="11sp" android:letterSpacing="0.08"/>
+                android:textSize="11sp" android:letterSpacing="0.08"
+                android:fontFamily="@font/orbitron"/>
         </LinearLayout>
 
         <Button android:id="@+id/btnSelectAll"
@@ -59,7 +61,7 @@
     <!-- Download button -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:orientation="horizontal" android:padding="12dp"
-        android:background="@drawable/bg_panel_header">
+        android:background="@drawable/bg_glass_panel_header">
 
         <Button android:id="@+id/btnDownloadSelected"
             android:layout_width="match_parent" android:layout_height="44dp"
