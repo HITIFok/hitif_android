@@ -1,21 +1,21 @@
 package com.hitif.videodownloader.download
 
 import android.app.DownloadManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import androidx.core.app.NotificationCompat
+import android.os.StatFs
+import android.util.Log
+import android.widget.Toast
 import com.hitif.videodownloader.model.MediaItem
 import com.hitif.videodownloader.model.MediaType
 
 object DownloadHelper {
 
-    private const val DL_CHANNEL_ID = "hitif_active_downloads"
-    private var notificationCounter = 2000
+    private const val TAG = "HITIF_DL"
+    // Minimum storage required to start a download (100 MB)
+    private const val MIN_STORAGE_MB = 100L
 
     fun enqueue(context: Context, item: MediaItem): Long {
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -27,15 +27,25 @@ object DownloadHelper {
             else            -> "HITIF/Video/$safeName"
         }
 
+        // ── Storage check ────────────────────────────────────────────────
+        val availableMB = getAvailableStorageMB(context)
+        if (availableMB >= 0 && availableMB < MIN_STORAGE_MB) {
+            Log.w(TAG, "Storage presque pleine: ${availableMB}MB disponibles")
+            Toast.makeText(
+                context,
+                "Espace insuffisant: ${availableMB}MB libres. Minimum requis: ${MIN_STORAGE_MB}MB",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+
         val request = DownloadManager.Request(Uri.parse(item.url)).apply {
             setTitle(safeName)
             setDescription("HITIF Video Downloader - Telechargement en cours...")
             setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subPath)
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED or
-                    DownloadManager.Request.VISIBILITY_VISIBLE)
+            // Only use DownloadManager's own notification — no custom duplicate
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             allowScanningByMediaScanner()
 
-            // Speed boost: use larger buffer and allow metered connections
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI or
                         DownloadManager.Request.NETWORK_MOBILE)
@@ -56,17 +66,10 @@ object DownloadHelper {
             addRequestHeader("Accept", "*/*")
             addRequestHeader("Accept-Encoding", "identity")
             addRequestHeader("Connection", "keep-alive")
-
-            // Speed boost: don't restrict bandwidth
-            // Note: DownloadManager doesn't expose direct buffer control,
-            // but proper headers and network settings optimize throughput
         }
 
         val downloadId = dm.enqueue(request)
-
-        // Show download started notification
-        showDownloadStartedNotification(context, safeName, downloadId)
-
+        Log.d(TAG, "Download enqueued: id=$downloadId name=$safeName storage=${availableMB}MB")
         return downloadId
     }
 
@@ -96,36 +99,67 @@ object DownloadHelper {
         }
     }
 
-    private fun createChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                DL_CHANNEL_ID,
-                "HITIF Downloads",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Suivi des telechargements actifs"
-                setShowBadge(true)
-            }
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+    /**
+     * Check storage space available for downloads.
+     * Returns available MB, or -1 if it cannot be determined.
+     */
+    fun getAvailableStorageMB(context: Context): Long {
+        return try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val stat = StatFs(downloadsDir.absolutePath)
+            val availableBytes = stat.availableBytes
+            availableBytes / (1024 * 1024)
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot check storage", e)
+            -1L
         }
     }
 
-    private fun showDownloadStartedNotification(context: Context, title: String, downloadId: Long) {
-        createChannel(context)
-        notificationCounter++
+    /**
+     * Get total storage capacity in MB.
+     */
+    fun getTotalStorageMB(context: Context): Long {
+        return try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val stat = StatFs(downloadsDir.absolutePath)
+            stat.totalBytes / (1024 * 1024)
+        } catch (e: Exception) {
+            -1L
+        }
+    }
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notification = NotificationCompat.Builder(context, DL_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(title)
-            .setContentText("Telechargement lance...")
-            .setOngoing(true)
-            .setSilent(true)
-            .setAutoCancel(false)
-            .setProgress(100, 0, true)
-            .build()
-        notificationManager.notify(downloadId.toInt(), notification)
+    /**
+     * Get used storage in MB.
+     */
+    fun getUsedStorageMB(context: Context): Long {
+        val total = getTotalStorageMB(context)
+        val available = getAvailableStorageMB(context)
+        return if (total >= 0 && available >= 0) total - available else -1L
+    }
+
+    /**
+     * Get a human-readable storage info string like "2.3 GB libres / 64 GB total"
+     */
+    fun getStorageInfoText(context: Context): String {
+        val available = getAvailableStorageMB(context)
+        val total = getTotalStorageMB(context)
+        return if (available < 0 || total < 0) {
+            "Stockage: inconnu"
+        } else {
+            val availStr = if (available >= 1024) String.format("%.1f GB", available / 1024.0)
+                           else "${available} MB"
+            val totalStr = if (total >= 1024) String.format("%.1f GB", total / 1024.0)
+                           else "${total} MB"
+            "$availStr libres / $totalStr"
+        }
+    }
+
+    /**
+     * Check if storage is critically low (< 100 MB).
+     */
+    fun isStorageCriticallyLow(context: Context): Boolean {
+        val available = getAvailableStorageMB(context)
+        return available >= 0 && available < MIN_STORAGE_MB
     }
 }
 
@@ -138,4 +172,30 @@ data class DownloadProgress(
     val isRunning: Boolean get() = status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PENDING
     val isComplete: Boolean get() = status == DownloadManager.STATUS_SUCCESSFUL
     val isFailed: Boolean get() = status == DownloadManager.STATUS_FAILED
+
+    /** Display size: use downloaded so far for running, total for completed */
+    val displayBytes: Long get() = when {
+        isRunning && bytesDownloaded > 0 -> bytesDownloaded
+        totalBytes > 0 -> totalBytes
+        else -> bytesDownloaded
+    }
+
+    /** Human-readable size string */
+    val displaySizeLabel: String get() {
+        val bytes = displayBytes
+        return when {
+            bytes <= 0 -> "0 KB"
+            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+            else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+        }
+    }
+
+    /** Progress label with percentage */
+    val progressLabel: String get() = when {
+        isComplete -> "Termine"
+        isFailed -> "Echoue"
+        isRunning && percent >= 0 -> "$percent%"
+        isRunning -> "En cours..."
+        else -> ""
+    }
 }

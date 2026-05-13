@@ -51,38 +51,93 @@
         android:layout_height="1dp"
         android:background="@color/border_cyan" />
 
-    <!-- Stats bar -->
+    <!-- Stats bar: count + total size + storage -->
     <LinearLayout
         android:id="@+id/statsBar"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:orientation="horizontal"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:gravity="center_vertical"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:background="@color/bg_surface">
 
-        <TextView
-            android:id="@+id/tvDownloadCount"
-            android:layout_width="wrap_content"
+        <!-- Row 1: File count + total downloaded size -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="0 fichier(s)"
-            android:textColor="@color/text_dim"
-            android:textSize="12sp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            <TextView
+                android:id="@+id/tvDownloadCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 fichier(s)"
+                android:textColor="@color/text_dim"
+                android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/tvTotalSize"
-            android:layout_width="wrap_content"
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tvTotalSize"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 MB"
+                android:textColor="@color/text_dim"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Row 2: Storage info -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="0 MB"
-            android:textColor="@color/text_dim"
-            android:textSize="12sp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <!-- Storage icon (small dot) -->
+            <View
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@color/status_success"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/tvStorageInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stockage: calcul..."
+                android:textColor="@color/text_dim"
+                android:textSize="11sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <!-- Storage bar -->
+        <ProgressBar
+            android:id="@+id/storageBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="6dp"
+            android:progressTint="@color/status_success"
+            android:progressBackgroundTint="@color/bg_primary"
+            android:max="100"
+            android:progress="70" />
     </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border_cyan" />
 
     <!-- Download list -->
     <androidx.recyclerview.widget.RecyclerView

@@ -26,7 +26,7 @@ data class MediaItem(
 ) : Parcelable {
 
     val sizeLabel: String get() = when {
-        sizeBytes <= 0 -> "—"
+        sizeBytes <= 0 -> "Taille inconnue"
         sizeBytes < 1024 * 1024 -> "${sizeBytes / 1024} KB"
         else -> String.format("%.1f MB", sizeBytes / (1024f * 1024f))
     }

@@ -136,17 +136,59 @@ class MediaDetector(
         hintType: MediaType, pageUrl: String, pageTitle: String
     ) {
         try {
-            val req = Request.Builder().url(url).method("HEAD", null).apply {
+            // Step 1: Try HEAD request to get Content-Type and Content-Length
+            var size = -1L
+            var mime = ""
+
+            val headReq = Request.Builder().url(url).method("HEAD", null).apply {
                 headers.forEach { (k, v) ->
                     if (k.lowercase() !in listOf("host", "content-length")) addHeader(k, v)
                 }
                 header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
             }.build()
 
-            val resp = http.newCall(req).execute()
-            val mime = resp.header("Content-Type", "") ?: ""
-            val size = resp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
-            resp.close()
+            try {
+                val resp = http.newCall(headReq).execute()
+                mime = resp.header("Content-Type", "") ?: ""
+                size = resp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
+                resp.close()
+            } catch (_: Exception) {
+                // HEAD failed — try with GET + Range header as fallback
+            }
+
+            // Step 2: If HEAD didn't return Content-Length, try Range request
+            // Some CDNs only return Content-Length when a Range header is present
+            if (size <= 0 && mime.isNotEmpty()) {
+                try {
+                    val rangeReq = Request.Builder().url(url).apply {
+                        header("Range", "bytes=0-1")
+                        headers.forEach { (k, v) ->
+                            if (k.lowercase() !in listOf("host", "content-length", "range")) addHeader(k, v)
+                        }
+                        header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                    }.build()
+
+                    val rangeResp = http.newCall(rangeReq).execute()
+                    // Content-Range: bytes 0-1/TOTAL_SIZE
+                    val contentRange = rangeResp.header("Content-Range", "")
+                    if (contentRange.contains('/')) {
+                        val totalStr = contentRange.substringAfterLast('/').trim()
+                        size = totalStr.toLongOrNull() ?: -1L
+                    }
+                    // Also try Content-Length as fallback (some servers return total here)
+                    if (size <= 0) {
+                        val cl = rangeResp.header("Content-Length", "-1")?.toLongOrNull() ?: -1L
+                        // Content-Length in a 206 response is the chunk size, not total
+                        // But if status is 200, it's the total
+                        if (rangeResp.code == 200 && cl > 2) size = cl
+                    }
+                    // Use mime from range request if HEAD didn't get it
+                    if (mime.isBlank()) mime = rangeResp.header("Content-Type", "") ?: ""
+                    rangeResp.close()
+                } catch (_: Exception) {
+                    // Range request also failed — continue with unknown size
+                }
+            }
 
             val resolvedType = when {
                 VIDEO_MIME_PREFIXES.any { mime.startsWith(it) } -> {
