@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.hitif.videodownloader.R
 import com.hitif.videodownloader.db.AppDatabase
 import com.hitif.videodownloader.download.DownloadHelper
+import com.hitif.videodownloader.download.DownloadNotificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
@@ -289,16 +290,34 @@ class DownloadHistoryActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete(record: UiDownloadRecord) {
+        val isActivelyDownloading = record.isActive
+        val message = if (isActivelyDownloading) {
+            "'${record.title}' est en cours de telechargement. Supprimer et annuler le telechargement ?"
+        } else {
+            "Supprimer '${record.title}' de l'historique ?"
+        }
+
         AlertDialog.Builder(this)
             .setTitle("Supprimer")
-            .setMessage("Supprimer '${record.title}' de l'historique ?")
+            .setMessage(message)
             .setPositiveButton("Supprimer") { _, _ ->
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
-                    db.downloadDao().deleteById(record.id)
-                    loadDownloads()
+                // Cancel the actual download job if it's still running
+                if (isActivelyDownloading) {
+                    DownloadHelper.cancelDownload(this@DownloadHistoryActivity, record.url)
+                } else {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
+                        db.downloadDao().deleteById(record.id)
+                        loadDownloads()
+                    }
                 }
-                Toast.makeText(this, "Supprime", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    if (isActivelyDownloading) "Telechargement annule et supprime"
+                    else "Supprime",
+                    Toast.LENGTH_SHORT
+                ).show()
+                loadDownloads()
             }
             .setNegativeButton("Annuler", null)
             .show()
@@ -323,6 +342,11 @@ class DownloadHistoryActivity : AppCompatActivity() {
 
     private fun clearAllDownloads() {
         lifecycleScope.launch(Dispatchers.IO) {
+            // First, cancel ALL active downloads in both engines
+            com.hitif.videodownloader.download.TurboDownloadEngine.cancelAll()
+            com.hitif.videodownloader.download.HlsDownloader.cancelAll()
+            try { DownloadNotificationManager.dismissAll() } catch (_: Exception) {}
+
             val db = AppDatabase.getInstance(this@DownloadHistoryActivity)
             db.downloadDao().deleteAll()
             loadDownloads()

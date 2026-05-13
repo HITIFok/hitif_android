@@ -111,6 +111,12 @@ object HlsDownloader {
         return job
     }
 
+    /** Check whether an HLS download is still actively running for the given URL. */
+    fun isActive(url: String): Boolean {
+        val job = activeJobs[url] ?: return false
+        return job.isActive
+    }
+
     fun cancel(url: String) {
         activeJobs[url]?.cancel()
         activeJobs.remove(url)

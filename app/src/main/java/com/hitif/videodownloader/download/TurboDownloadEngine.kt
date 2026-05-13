@@ -120,6 +120,18 @@ object TurboDownloadEngine {
         return job
     }
 
+    /** Cancel a specific download by URL. */
+    fun cancel(url: String) {
+        activeJobs[url]?.cancel()
+        activeJobs.remove(url)
+    }
+
+    /** Check whether a download is still actively running for the given URL. */
+    fun isActive(url: String): Boolean {
+        val job = activeJobs[url] ?: return false
+        return job.isActive
+    }
+
     /** Cancel every active download managed by this engine. */
     fun cancelAll() {
         activeJobs.values.forEach { it.cancel() }

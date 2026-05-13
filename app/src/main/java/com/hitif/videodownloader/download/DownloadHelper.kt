@@ -328,6 +328,39 @@ object DownloadHelper {
     }
 
     // ========================================================================
+    // Cancel / active check — bridges UI to download engines
+    // ========================================================================
+
+    /**
+     * Cancel the download for a given URL and remove its Room DB record.
+     * This stops the actual download job AND cleans up the history entry.
+     */
+    fun cancelDownload(context: android.content.Context, url: String) {
+        // Cancel the active job in whichever engine is running it
+        TurboDownloadEngine.cancel(url)
+        HlsDownloader.cancel(url)
+
+        // Dismiss notifications
+        try { DownloadNotificationManager.dismiss(url) } catch (_: Exception) {}
+
+        // Remove from Room DB (async, fire-and-forget)
+        scope.launch {
+            try {
+                AppDatabase.getInstance(context).downloadDao().deleteByUrl(url)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete record on cancel: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Check whether a download is still actively running in either engine.
+     */
+    fun isDownloadActive(url: String): Boolean {
+        return TurboDownloadEngine.isActive(url) || HlsDownloader.isActive(url)
+    }
+
+    // ========================================================================
     // Storage monitoring
     // ========================================================================
 

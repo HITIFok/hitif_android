@@ -154,12 +154,7 @@ class DownloadProgressService : Service() {
         val db = getDatabase() ?: return
         val now = System.currentTimeMillis()
 
-        // Clean up stale downloads stuck in DOWNLOADING/QUEUED for > 5 minutes
-        try {
-            db.downloadDao().failStaleDownloads(now - 5 * 60 * 1000L)
-        } catch (_: Exception) {}
-
-        // Get all active downloads from Room
+        // Get all records from Room
         val allRecords = try {
             db.downloadDao().getRecent(200)
         } catch (_: Exception) { return }
@@ -168,7 +163,48 @@ class DownloadProgressService : Service() {
             record.state == "DOWNLOADING" || record.state == "QUEUED"
         }
 
-        if (activeRecords.isEmpty()) {
+        // Reconcile Room DB state with actual engine state:
+        // If a record is DOWNLOADING in DB but the engine job is NOT running,
+        // it means the download truly failed or was interrupted — mark as FAILED.
+        // But if the engine job IS still running, leave it alone even if old.
+        for (record in activeRecords) {
+            if (!DownloadHelper.isDownloadActive(record.url)) {
+                // The engine is NOT running this download anymore.
+                // If it's been stuck for more than 30 seconds (grace for brief pauses),
+                // mark as truly FAILED.
+                val stuckMs = now - (record.startedAt)
+                // Also check if progress hasn't changed for a while using speed
+                val noProgress = record.speedBps == 0L && record.progressBytes == 0L
+                if (noProgress && stuckMs > 30_000L) {
+                    try {
+                        db.downloadDao().updateStateByUrl(
+                            url = record.url, state = "FAILED",
+                            ts = now
+                        )
+                    } catch (_: Exception) {}
+                } else if (stuckMs > 10 * 60 * 1000L) {
+                    // Very old download (>10 min) with no active engine — definitely dead
+                    try {
+                        db.downloadDao().updateStateByUrl(
+                            url = record.url, state = "FAILED",
+                            ts = now
+                        )
+                    } catch (_: Exception) {}
+                }
+            }
+            // If engine IS active, we trust it — do NOT mark as failed
+        }
+
+        // Re-read after cleanup
+        val refreshedRecords = try {
+            db.downloadDao().getRecent(200)
+        } catch (_: Exception) { return }
+
+        val refreshedActive = refreshedRecords.filter { record ->
+            record.state == "DOWNLOADING" || record.state == "QUEUED"
+        }
+
+        if (refreshedActive.isEmpty()) {
             scheduleGrace()
             return
         }
@@ -176,7 +212,7 @@ class DownloadProgressService : Service() {
         cancelGrace()
 
         // Aggregate stats for summary notification
-        val downloadingRecords = activeRecords.filter { it.state == "DOWNLOADING" }
+        val downloadingRecords = refreshedActive.filter { it.state == "DOWNLOADING" }
         val totalSpeed = downloadingRecords.sumOf { it.speedBps }
         val totalDownloaded = downloadingRecords.sumOf { it.progressBytes }
         val totalSize = downloadingRecords.sumOf { it.totalBytes }
