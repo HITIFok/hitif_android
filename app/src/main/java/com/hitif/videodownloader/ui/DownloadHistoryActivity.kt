@@ -53,24 +53,26 @@ data class DownloadRecord(
     }
 
     /** Human-readable display size */
-    val displaySizeLabel: String {
-        val bytes = displayBytes
-        return when {
-            bytes <= 0 -> "0 KB"
-            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-            else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+    val displaySizeLabel: String
+        get() {
+            val bytes = displayBytes
+            return when {
+                bytes <= 0 -> "0 KB"
+                bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+                else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+            }
         }
-    }
 
     /** Progress label with percentage for running downloads */
-    val progressLabel: String = when (status) {
-        DownloadManager.STATUS_RUNNING -> if (percent >= 0) "$percent%" else "En cours..."
-        DownloadManager.STATUS_PENDING -> "En attente"
-        DownloadManager.STATUS_PAUSED -> "En pause"
-        DownloadManager.STATUS_FAILED -> "Echoue"
-        DownloadManager.STATUS_SUCCESSFUL -> "Termine"
-        else -> ""
-    }
+    val progressLabel: String
+        get() = when (status) {
+            DownloadManager.STATUS_RUNNING -> if (percent >= 0) "$percent%" else "En cours..."
+            DownloadManager.STATUS_PENDING -> "En attente"
+            DownloadManager.STATUS_PAUSED -> "En pause"
+            DownloadManager.STATUS_FAILED -> "Echoue"
+            DownloadManager.STATUS_SUCCESSFUL -> "Termine"
+            else -> ""
+        }
 }
 
 class DownloadHistoryActivity : AppCompatActivity() {
