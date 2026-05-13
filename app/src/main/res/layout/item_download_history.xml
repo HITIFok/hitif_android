@@ -40,7 +40,7 @@
                 android:text="filename.mp4"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
-                android:fontFamily="@font/rajdhani_medium"
+               
                 android:maxLines="2"
                 android:ellipsize="middle" />
 
@@ -57,7 +57,7 @@
                     android:text="12.5 MB"
                     android:textColor="@color/text_dim"
                     android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    />
 
                 <TextView
                     android:id="@+id/tvStatus"
@@ -67,7 +67,7 @@
                     android:text="Termine"
                     android:textColor="@color/status_success"
                     android:textSize="11sp"
-                    android:fontFamily="@font/rajdhani_medium" />
+                    />
             </LinearLayout>
 
             <TextView
@@ -78,7 +78,7 @@
                 android:text="11/05/2026 14:30"
                 android:textColor="@color/text_dim"
                 android:textSize="10sp"
-                android:fontFamily="@font/rajdhani_medium"
+               
                 android:alpha="0.7" />
         </LinearLayout>
 

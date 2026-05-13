@@ -33,7 +33,7 @@
             android:hint="Rechercher ou saisir une URL…"
             android:textColorHint="@color/text_dim"
             android:textColor="@color/text_primary"
-            android:fontFamily="@font/rajdhani_medium"
+           
             android:textSize="14sp"
             android:singleLine="true"
             android:imeOptions="actionGo"

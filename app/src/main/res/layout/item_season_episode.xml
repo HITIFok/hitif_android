@@ -23,18 +23,18 @@
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="S01E01" android:textColor="@color/accent_cyan"
             android:textSize="12sp" android:letterSpacing="0.06"
-            android:fontFamily="@font/rajdhani_medium"/>
+           />
 
         <TextView android:id="@+id/tvFilename"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:textColor="@color/text_primary" android:textSize="11sp"
-            android:fontFamily="@font/rajdhani_medium"
+           
             android:maxLines="1" android:ellipsize="end" android:layout_marginTop="1dp"/>
 
         <TextView android:id="@+id/tvSize"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:textColor="@color/text_dim" android:textSize="10sp"
-            android:fontFamily="@font/rajdhani_medium" android:layout_marginTop="1dp"/>
+            android:layout_marginTop="1dp"/>
     </LinearLayout>
 
 </LinearLayout>

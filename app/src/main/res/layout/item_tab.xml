@@ -33,7 +33,7 @@
             android:layout_weight="1"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
-            android:fontFamily="@font/rajdhani_medium"
+           
             android:maxLines="1"
             android:ellipsize="end"/>
 
@@ -55,7 +55,7 @@
         android:layout_height="wrap_content"
         android:textColor="@color/text_dim"
         android:textSize="10sp"
-        android:fontFamily="@font/rajdhani_medium"
+       
         android:maxLines="1"
         android:ellipsize="end"
         android:layout_marginTop="4dp"

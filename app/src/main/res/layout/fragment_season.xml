@@ -22,13 +22,13 @@
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="SÉRIE" android:textColor="@color/accent_cyan"
                 android:textSize="13sp" android:letterSpacing="0.1"
-                android:fontFamily="@font/orbitron"/>
+               />
 
             <TextView android:id="@+id/tvSeasonLabel"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="SAISON" android:textColor="@color/text_dim"
                 android:textSize="11sp" android:letterSpacing="0.08"
-                android:fontFamily="@font/orbitron"/>
+               />
         </LinearLayout>
 
         <android.widget.Button android:id="@+id/btnSelectAll"

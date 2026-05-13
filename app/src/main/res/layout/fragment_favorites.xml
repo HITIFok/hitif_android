@@ -23,11 +23,11 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="FAVORIS" android:textColor="@color/status_warning"
                 android:textSize="11sp" android:letterSpacing="0.12"
-                android:fontFamily="@font/orbitron"/>
+               />
             <TextView android:id="@+id/tvCount" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:text="Aucun favori"
                 android:textColor="@color/text_dim" android:textSize="11sp"
-                android:fontFamily="@font/rajdhani_medium"/>
+               />
         </LinearLayout>
 
         <ImageButton android:id="@+id/btnClose"
@@ -49,12 +49,12 @@
             android:layout_marginTop="14dp" android:text="AUCUN FAVORI"
             android:textColor="@color/status_warning" android:textSize="10sp"
             android:letterSpacing="0.2" android:alpha="0.6"
-            android:fontFamily="@font/orbitron"/>
+           />
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="6dp" android:text="Appuyez sur l'etoile dans la barre d'adresse pour ajouter"
             android:textColor="@color/text_dim" android:textSize="12sp" android:gravity="center"
             android:paddingStart="32dp" android:paddingEnd="32dp"
-            android:fontFamily="@font/rajdhani_medium"/>
+           />
     </LinearLayout>
 
     <!-- Favorites list -->
