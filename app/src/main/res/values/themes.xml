@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- ── Main app theme ───────────────────────────────────────────── -->
+    <!-- ── Main app theme — CyberGlass 3D ──────────────────────────── -->
     <style name="Theme.HITIFBrowser" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/accent_cyan</item>
         <item name="colorPrimaryVariant">@color/accent_cyan_dim</item>
@@ -12,18 +12,22 @@
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="android:colorBackground">@color/bg_primary</item>
         <item name="colorError">@color/status_error</item>
+        <!-- SAFE: keep color as windowBackground (not drawable) to avoid inflation crash -->
         <item name="android:windowBackground">@color/bg_primary</item>
         <item name="android:statusBarColor">@color/bg_primary</item>
         <item name="android:navigationBarColor">@color/bg_toolbar</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <!-- Rounded dialogs (safe — no custom alertDialogTheme) -->
+        <item name="dialogCornerRadius">20dp</item>
+        <!-- NO fontFamily here — causes RemoteException on devices without Google Play Services -->
     </style>
 
-    <!-- ── Bottom sheet theme ───────────────────────────────────────── -->
+    <!-- ── Bottom sheet theme — CyberGlass ──────────────────────────── -->
     <style name="Theme.BottomSheet.Holo"
            parent="Theme.MaterialComponents.BottomSheetDialog">
         <item name="colorSurface">@color/bg_surface</item>
-        <item name="android:backgroundDimAmount">0.6</item>
+        <item name="android:backgroundDimAmount">0.65</item>
         <item name="bottomSheetStyle">@style/Widget.BottomSheet.Holo</item>
     </style>
 
@@ -36,8 +40,8 @@
     <style name="ShapeAppearance.BottomSheet.Holo"
            parent="ShapeAppearance.MaterialComponents.LargeComponent">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSizeTopLeft">20dp</item>
-        <item name="cornerSizeTopRight">20dp</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
         <item name="cornerSizeBottomLeft">0dp</item>
         <item name="cornerSizeBottomRight">0dp</item>
     </style>
