@@ -96,6 +96,11 @@ object HlsDownloader {
         activeJobs[url]?.cancel()
 
         val handler = CoroutineExceptionHandler { _, throwable ->
+            // Ignore cancellations — they happen when a new download replaces an old one
+            if (throwable is CancellationException) {
+                Log.d(TAG, "HLS job cancelled (replaced by new download): $url")
+                return@CoroutineExceptionHandler
+            }
             Log.e(TAG, "Uncaught error for $url: ${throwable.message}", throwable)
         }
 

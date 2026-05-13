@@ -93,6 +93,11 @@ object TurboDownloadEngine {
 
         // SupervisorJob + CoroutineExceptionHandler prevents ANY crash from propagating
         val handler = CoroutineExceptionHandler { _, throwable ->
+            // Ignore cancellations — they happen when a new download replaces an old one
+            if (throwable is CancellationException) {
+                Log.d(TAG, "Job cancelled (replaced by new download): $url")
+                return@CoroutineExceptionHandler
+            }
             Log.e(TAG, "Uncaught error for $url: ${throwable.message}", throwable)
             try { callback.onError(throwable) } catch (_: Exception) {}
         }

@@ -75,9 +75,11 @@ object DownloadHelper {
         val headers = buildHeaders(item)
         val db = AppDatabase.getInstance(context)
 
-        // Insert record
+        // Insert record (replace any existing record for the same URL to avoid duplicates)
         scope.launch {
             try {
+                // Remove any previous record for this URL to prevent duplicate FAILED entries
+                db.downloadDao().deleteByUrl(item.url)
                 db.downloadDao().insert(
                     DownloadRecord(
                         downloadManagerId = -1L,
@@ -130,6 +132,11 @@ object DownloadHelper {
                 }
 
                 override fun onError(error: Throwable) {
+                    // Don't mark as FAILED if this is a cancellation (previous download replaced)
+                    if (error is kotlinx.coroutines.CancellationException) {
+                        Log.d(TAG, "HLS cancelled (replaced by new download): ${item.url.take(80)}")
+                        return
+                    }
                     Log.e(TAG, "HLS error: ${error.message}", error)
                     try {
                         scope.launch {
@@ -166,9 +173,11 @@ object DownloadHelper {
         val headers = buildHeaders(item)
         val db = AppDatabase.getInstance(context)
 
-        // Insert record
+        // Insert record (replace any existing record for the same URL to avoid duplicates)
         scope.launch {
             try {
+                // Remove any previous record for this URL to prevent duplicate FAILED entries
+                db.downloadDao().deleteByUrl(item.url)
                 db.downloadDao().insert(
                     DownloadRecord(
                         downloadManagerId = -1L,
@@ -229,6 +238,11 @@ object DownloadHelper {
                 }
 
                 override fun onError(error: Throwable) {
+                    // Don't mark as FAILED if this is a cancellation (previous download replaced)
+                    if (error is kotlinx.coroutines.CancellationException) {
+                        Log.d(TAG, "Direct download cancelled (replaced): ${item.url.take(80)}")
+                        return
+                    }
                     Log.e(TAG, "Direct download error: ${error.message}", error)
                     try {
                         scope.launch {

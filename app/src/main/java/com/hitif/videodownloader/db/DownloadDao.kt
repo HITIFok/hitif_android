@@ -54,6 +54,10 @@ interface DownloadDao {
     @Query("DELETE FROM download_history WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    /** Delete all records for a given URL (used before re-downloading to avoid duplicates) */
+    @Query("DELETE FROM download_history WHERE url = :url")
+    suspend fun deleteByUrl(url: String)
+
     @Query("DELETE FROM download_history")
     suspend fun deleteAll()
 
